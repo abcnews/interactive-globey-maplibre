@@ -1,23 +1,18 @@
 <script lang="ts">
   import type { Map as MapLibreMap } from 'maplibre-gl';
   import type { DecodedObject, GeoJsonConfig, ImageSourceConfig, Label } from '../../../lib/marker';
+  import { hasMapLabels, DEFAULT_MAP_LABELS, DISABLED_MAP_LABELS } from '../../../lib/marker/utils';
   import {
     Z_INDEX_GEOJSON,
     Z_INDEX_IMAGE_LAYERS,
+    Z_INDEX_BASE_LABELS,
     Z_INDEX_CUSTOM_LABELS
   } from '../../CustomGlobe/features/layerUtils';
   import { safeFitBounds } from '../utils';
   import PropList from '../PropList.svelte';
   import GeoJsonConfigModal from '../GeoJSON/GeoJsonConfigModal.svelte';
   import ImageSourceConfigModal from '../ImageSource/ImageSourceConfigModal.svelte';
-  import {
-    Pencil,
-    Trash,
-    Plus,
-    Image as ImageIcon,
-    Map as MapIcon,
-    ChatSquareText
-  } from 'svelte-bootstrap-icons';
+  import { Pencil, Trash, Plus, Image as ImageIcon, Map as MapIcon, ChatSquareText } from 'svelte-bootstrap-icons';
 
   export type LayerKind = 'geojson' | 'image' | 'labels';
 
@@ -34,8 +29,8 @@
     description: string;
     zIndex: number;
     data?: GeoJsonConfig | ImageSourceConfig | Label[];
-    editable?: boolean;
-    deletable?: boolean;
+    onEdit?: () => void;
+    onDelete?: () => void;
   }
 
   interface Props {
@@ -56,31 +51,64 @@
   /** Whether the "Add Layer" dropdown menu is open. */
   let showAddMenu = $state(false);
 
+  function openEditModal(item: LayerItem) {
+    editingItem = item;
+    isAdding = null;
+    newLayerDraft = null;
+    showAddMenu = false;
+  }
+
   /** Visual layer stack ordered from top (highest z-index) to bottom */
   const layers = $derived.by<LayerItem[]>(() => {
-    const geojson: LayerItem[] = (options.geoJson || []).map((item, idx) => ({
-      id: `geojson-${item.cmid || idx}`,
-      kind: 'geojson',
-      name: item.type ? `${item.type.charAt(0).toUpperCase() + item.type.slice(1)}` : 'GeoJSON',
-      description: item.cmid ? `CMID: ${item.cmid}` : 'No CMID',
-      zIndex: item.zIndex ?? Z_INDEX_GEOJSON + idx * 0.1,
-      data: item,
-      editable: true,
-      deletable: true
-    }));
+    const geojson: LayerItem[] = (options.geoJson || []).map((item, idx) => {
+      const layerItem: LayerItem = {
+        id: `geojson-${item.cmid || idx}`,
+        kind: 'geojson',
+        name: item.type ? `${item.type.charAt(0).toUpperCase() + item.type.slice(1)}` : 'GeoJSON',
+        description: item.cmid ? `CMID: ${item.cmid}` : 'No CMID',
+        zIndex: item.zIndex ?? Z_INDEX_GEOJSON + idx * 0.1,
+        data: item,
+        onEdit: () => openEditModal(layerItem),
+        onDelete: () => {
+          options.geoJson = (options.geoJson || []).filter(entry => entry !== item);
+        }
+      };
+      return layerItem;
+    });
 
-    const img: LayerItem[] = (options.imageSources || []).map((item, idx) => ({
-      id: `img-${item.id || idx}`,
-      kind: 'image',
-      name: item.url ? item.url.split('?')[0].split('/').pop() || item.url : 'Image',
-      description: `Opacity: ${Math.round((item.opacity ?? 1) * 100)}%`,
-      zIndex: item.zIndex ?? Z_INDEX_IMAGE_LAYERS + idx * 0.1,
-      data: item,
-      editable: true,
-      deletable: true
-    }));
+    const img: LayerItem[] = (options.imageSources || []).map((item, idx) => {
+      const layerItem: LayerItem = {
+        id: `img-${item.id || idx}`,
+        kind: 'image',
+        name: item.url ? item.url.split('?')[0].split('/').pop() || item.url : 'Image',
+        description: `Opacity: ${Math.round((item.opacity ?? 1) * 100)}%`,
+        zIndex: item.zIndex ?? Z_INDEX_IMAGE_LAYERS + idx * 0.1,
+        data: item,
+        onEdit: () => openEditModal(layerItem),
+        onDelete: () => {
+          options.imageSources = (options.imageSources || []).filter(entry => entry !== item);
+        }
+      };
+      return layerItem;
+    });
 
-    const labelItems: LayerItem[] =
+    const builtInLabelsActive = hasMapLabels(options.mapLabels ?? DEFAULT_MAP_LABELS);
+    const builtInLabelItems: LayerItem[] = builtInLabelsActive
+      ? [
+          {
+            id: 'builtin-labels',
+            kind: 'labels',
+            name: 'Built-in Labels',
+            description: 'Countries, places & borders',
+            zIndex: options.mapLabelsZIndex ?? Z_INDEX_BASE_LABELS,
+            onDelete: () => {
+              options.mapLabels = { ...DISABLED_MAP_LABELS };
+            }
+          }
+        ]
+      : [];
+
+    const customLabelItems: LayerItem[] =
       options.labels && options.labels.length > 0
         ? [
             {
@@ -90,18 +118,13 @@
               description: `${options.labels.length} label${options.labels.length === 1 ? '' : 's'}`,
               zIndex: options.labelsZIndex ?? Z_INDEX_CUSTOM_LABELS,
               data: options.labels,
-              editable: false,
-              deletable: false
+              onDelete: () => (options.labels = [])
             }
           ]
         : [];
 
-    return [...geojson, ...img, ...labelItems].sort((a, b) => b.zIndex - a.zIndex);
+    return [...geojson, ...img, ...builtInLabelItems, ...customLabelItems].sort((a, b) => b.zIndex - a.zIndex);
   });
-
-  function getOptionKey(kind: LayerKind): 'geoJson' | 'imageSources' {
-    return kind === 'geojson' ? 'geoJson' : 'imageSources';
-  }
 
   function handleReorder(newItems: LayerItem[]) {
     const total = newItems.length;
@@ -113,24 +136,16 @@
         (item.data as GeoJsonConfig).zIndex = assignedZ;
       } else if (item.kind === 'image' && item.data) {
         (item.data as ImageSourceConfig).zIndex = assignedZ;
-      } else if (item.kind === 'labels') {
+      } else if (item.id === 'custom-labels') {
         options.labelsZIndex = assignedZ;
+      } else if (item.id === 'builtin-labels') {
+        options.mapLabelsZIndex = assignedZ;
       }
     });
 
-    options.geoJson = newItems
-      .filter(item => item.kind === 'geojson')
-      .map(item => item.data as GeoJsonConfig);
+    options.geoJson = newItems.filter(item => item.kind === 'geojson').map(item => item.data as GeoJsonConfig);
 
-    options.imageSources = newItems
-      .filter(item => item.kind === 'image')
-      .map(item => item.data as ImageSourceConfig);
-  }
-
-  function removeLayer(item: LayerItem) {
-    if (!item.deletable) return;
-    const key = getOptionKey(item.kind);
-    options[key] = ((options[key] as any[]) || []).filter(entry => entry !== item.data);
+    options.imageSources = newItems.filter(item => item.kind === 'image').map(item => item.data as ImageSourceConfig);
   }
 
   function addLayer(kind: LayerKind) {
@@ -143,12 +158,11 @@
     newLayerDraft = { zIndex: maxZ + 10 };
   }
 
-  function editLayer(item: LayerItem) {
-    if (!item.editable) return;
-    editingItem = item;
-    isAdding = null;
-    newLayerDraft = null;
+  function addBuiltInLabels() {
     showAddMenu = false;
+    options.mapLabels = { ...DEFAULT_MAP_LABELS };
+    const maxZ = layers.length > 0 ? Math.max(...layers.map(l => l.zIndex)) : Z_INDEX_BASE_LABELS;
+    options.mapLabelsZIndex = maxZ + 10;
   }
 
   function handleClose(bounds?: [number, number][]) {
@@ -186,6 +200,11 @@
           <button type="button" onclick={() => addLayer('image')}>
             <ImageIcon /> Image Overlay
           </button>
+          {#if !hasMapLabels(options.mapLabels)}
+            <button type="button" onclick={addBuiltInLabels}>
+              <ChatSquareText /> Built-in Labels
+            </button>
+          {/if}
         </div>
       {/if}
     </div>
@@ -208,18 +227,13 @@
         <span class="layer-desc">{item.description}</span>
       {/snippet}
       {#snippet actions(item: LayerItem)}
-        {#if item.editable}
-          <button
-            class="btn-icon"
-            aria-label="Edit"
-            title="Edit"
-            onclick={() => editLayer(item)}
-          >
+        {#if item.onEdit}
+          <button class="btn-icon" aria-label="Edit" title="Edit" onclick={item.onEdit}>
             <Pencil />
           </button>
         {/if}
-        {#if item.deletable}
-          <button class="btn-icon" aria-label="Delete" title="Delete" onclick={() => removeLayer(item)}>
+        {#if item.onDelete}
+          <button class="btn-icon" aria-label="Delete" title="Delete" onclick={item.onDelete}>
             <Trash />
           </button>
         {/if}
@@ -228,32 +242,20 @@
   {/if}
 
   {#if isAdding === 'geojson'}
-    <GeoJsonConfigModal
-      bind:config={newLayerDraft}
-      onclose={handleClose}
-    />
+    <GeoJsonConfigModal bind:config={newLayerDraft} onclose={handleClose} />
   {:else if editingItem?.kind === 'geojson'}
     {@const idx = options.geoJson?.indexOf(editingItem.data as GeoJsonConfig)}
     {#if idx !== undefined && idx !== -1}
-      <GeoJsonConfigModal
-        bind:config={options.geoJson![idx]}
-        onclose={handleClose}
-      />
+      <GeoJsonConfigModal bind:config={options.geoJson![idx]} onclose={handleClose} />
     {/if}
   {/if}
 
   {#if isAdding === 'image'}
-    <ImageSourceConfigModal
-      bind:config={newLayerDraft}
-      onclose={handleClose}
-    />
+    <ImageSourceConfigModal bind:config={newLayerDraft} onclose={handleClose} />
   {:else if editingItem?.kind === 'image'}
     {@const idx = options.imageSources?.indexOf(editingItem.data as ImageSourceConfig)}
     {#if idx !== undefined && idx !== -1}
-      <ImageSourceConfigModal
-        bind:config={options.imageSources![idx]}
-        onclose={handleClose}
-      />
+      <ImageSourceConfigModal bind:config={options.imageSources![idx]} onclose={handleClose} />
     {/if}
   {/if}
 </fieldset>

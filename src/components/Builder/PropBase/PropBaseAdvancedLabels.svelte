@@ -1,23 +1,11 @@
 <script lang="ts">
   import type { DecodedObject } from '../../../lib/marker';
+  import { DEFAULT_MAP_LABELS } from '../../../lib/marker';
 
   let { options = $bindable() } = $props<{ options: DecodedObject }>();
 
-  const defaultLabels = {
-    countriesMajor: true,
-    countriesMedium: true,
-    countriesMinor: true,
-    continents: false,
-    states: false,
-    cities: false,
-    towns: false,
-    oceans: false,
-    nationalBoundaries: true,
-    stateBoundaries: false
-  };
-
-  function updateMapLabel(key: keyof typeof defaultLabels, value: any) {
-    const current = options.mapLabels || { ...defaultLabels };
+  function updateMapLabel(key: string, value: any) {
+    const current = options.mapLabels || { ...DEFAULT_MAP_LABELS };
     const next = { ...current };
     (next as any)[key] = value;
     options = {

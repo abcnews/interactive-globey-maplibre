@@ -18,7 +18,8 @@
    */
   import type * as maplibregl from 'maplibre-gl';
   import type { MapLabelsConfig } from '../../../lib/marker/types';
-  import { getContext } from 'svelte';
+  import { hasMapLabels } from '../../../lib/marker/utils';
+  import { getContext, untrack } from 'svelte';
   import {
     OPENMAPTILES_SOURCE_ID,
     OPENMAPTILES_SOURCE_DEF,
@@ -26,7 +27,13 @@
     getLabelLayers,
     getBaseStyleSource
   } from '../mapStyle/streetMap';
-  import { addLayerWithZIndex, removeLayerWithZIndex, Z_INDEX_BASE_VECTOR, Z_INDEX_BASE_LABELS } from './layerUtils';
+  import {
+    addLayerWithZIndex,
+    removeLayerWithZIndex,
+    setLayerZIndex,
+    Z_INDEX_BASE_VECTOR,
+    Z_INDEX_BASE_LABELS
+  } from './layerUtils';
 
   const mapRoot = getContext<{ map: maplibregl.Map }>('mapInstance');
 
@@ -44,15 +51,17 @@
       nationalBoundaries: true,
       stateBoundaries: false
     },
+    zIndex = Z_INDEX_BASE_LABELS,
     isSatellite = false
   }: {
     base?: string;
     labels?: MapLabelsConfig;
+    zIndex?: number;
     isSatellite?: boolean;
   } = $props();
 
   // Determine if we need to show labels at all
-  const hasLabels = $derived(Object.values(labels).filter(Boolean).length > 0);
+  const hasLabels = $derived(hasMapLabels(labels));
 
   // Determine if we need to show base layers (only in street mode)
   const showBase = $derived(base === 'street' || !base);
@@ -93,10 +102,10 @@
 
       allLayers.forEach(layer => {
         const isBase = baseLayers.includes(layer);
-        const zIndex = isBase ? Z_INDEX_BASE_VECTOR : Z_INDEX_BASE_LABELS;
+        const layerZ = isBase ? Z_INDEX_BASE_VECTOR : untrack(() => zIndex ?? Z_INDEX_BASE_LABELS);
 
         if (!map.getLayer(layer.id)) {
-          addLayerWithZIndex(map, layer as any, zIndex);
+          addLayerWithZIndex(map, layer as any, layerZ);
         } else if (labelLayers.includes(layer) && layer.paint) {
           // Update paint properties if they already exist (e.g. theme change)
           Object.keys(layer.paint).forEach(prop => {
@@ -118,6 +127,20 @@
         removeLayerWithZIndex(map, layer.id);
       });
     };
+  });
+
+  // Effect for dynamic z-index restacking on label layers
+  $effect(() => {
+    if (!mapRoot.map) return;
+    const map = mapRoot.map;
+    const effectiveZ = zIndex ?? Z_INDEX_BASE_LABELS;
+    const labelLayers = getLabelLayers(isSatellite);
+
+    labelLayers.forEach(layer => {
+      if (map.getLayer(layer.id)) {
+        setLayerZIndex(map, layer.id, effectiveZ);
+      }
+    });
   });
 
   // Effect for dynamic visibility - this is much more reactive

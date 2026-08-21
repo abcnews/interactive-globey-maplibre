@@ -37,3 +37,51 @@ export function decompressUrl(compressed: string): string {
   }
   return compressed;
 }
+
+export interface MapLabelsObject {
+  countriesMajor?: boolean;
+  countriesMedium?: boolean;
+  countriesMinor?: boolean;
+  continents?: boolean;
+  states?: boolean;
+  cities?: boolean;
+  towns?: boolean;
+  oceans?: boolean;
+  nationalBoundaries?: boolean;
+  stateBoundaries?: boolean;
+}
+
+export const DEFAULT_MAP_LABELS: Record<string, boolean> = {
+  countriesMajor: true,
+  countriesMedium: true,
+  countriesMinor: true,
+  continents: false,
+  states: false,
+  cities: false,
+  towns: false,
+  oceans: false,
+  nationalBoundaries: true,
+  stateBoundaries: false
+};
+
+export const DISABLED_MAP_LABELS: Record<string, boolean> = {
+  countriesMajor: false,
+  countriesMedium: false,
+  countriesMinor: false,
+  continents: false,
+  states: false,
+  cities: false,
+  towns: false,
+  oceans: false,
+  nationalBoundaries: false,
+  stateBoundaries: false
+};
+
+/**
+ * Determines whether any built-in map labels or boundaries are active.
+ */
+export function hasMapLabels(labels?: MapLabelsObject | null): boolean {
+  if (!labels) return false;
+  return Object.values(labels).some(Boolean);
+}
+

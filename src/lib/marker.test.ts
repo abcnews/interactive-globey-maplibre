@@ -13,6 +13,9 @@ import {
   urlCodec,
   mapLabelsSchema,
   markerSchema,
+  hasMapLabels,
+  DEFAULT_MAP_LABELS,
+  DISABLED_MAP_LABELS,
   GEOHASH_PRECISION,
   type DecodedObject
 } from './marker/index.ts';
@@ -147,6 +150,15 @@ describe('marker codecs', () => {
       const decoded = await mapLabelsSchema.decode(encoded);
       assert.deepStrictEqual(decoded, input);
     });
+
+    it('should correctly determine label visibility with hasMapLabels', () => {
+      assert.strictEqual(hasMapLabels(DEFAULT_MAP_LABELS), true);
+      assert.strictEqual(hasMapLabels(DISABLED_MAP_LABELS), false);
+      assert.strictEqual(hasMapLabels({ countriesMajor: true }), true);
+      assert.strictEqual(hasMapLabels({ countriesMajor: false, oceans: false }), false);
+      assert.strictEqual(hasMapLabels(null), false);
+      assert.strictEqual(hasMapLabels(undefined), false);
+    });
   });
 
   describe('markerSchema ACTO integration', () => {
@@ -195,6 +207,7 @@ describe('marker codecs', () => {
           }
         ],
         labelsZIndex: 600,
+        mapLabelsZIndex: 520,
         geoJson: [
           {
             cmid: 12345678,
@@ -236,6 +249,7 @@ describe('marker codecs', () => {
       assert.strictEqual(decoded.labels?.length, 1);
       assert.strictEqual(decoded.labels![0].name, 'Melbourne');
       assert.strictEqual(decoded.labelsZIndex, 600);
+      assert.strictEqual(decoded.mapLabelsZIndex, 520);
       assert.strictEqual(decoded.geoJson![0].cmid, 12345678);
       assert.strictEqual(decoded.geoJson![0].zIndex, 400);
       assert.deepStrictEqual(

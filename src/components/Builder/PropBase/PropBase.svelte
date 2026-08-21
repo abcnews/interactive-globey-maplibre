@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { DecodedObject } from '../../../lib/marker';
+  import { DEFAULT_MAP_LABELS } from '../../../lib/marker';
   import type * as maplibregl from 'maplibre-gl';
   import { Modal } from '@abcnews/components-builder';
   import { Pencil, Trash, X } from 'svelte-bootstrap-icons';
@@ -17,18 +18,7 @@
   }
 
   function updateMapLabel(key: string, value: any) {
-    const current = options.mapLabels || {
-      countriesMajor: true,
-      countriesMedium: true,
-      countriesMinor: true,
-      continents: false,
-      states: false,
-      cities: false,
-      towns: false,
-      oceans: false,
-      nationalBoundaries: true,
-      stateBoundaries: false
-    };
+    const current = options.mapLabels || { ...DEFAULT_MAP_LABELS };
     const next = { ...current };
     (next as any)[key] = value;
     options = {

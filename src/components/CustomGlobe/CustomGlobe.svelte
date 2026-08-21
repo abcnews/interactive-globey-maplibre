@@ -95,7 +95,12 @@
         animationDuration={options.animationDuration}
       />
 
-      <MapVectorHandler base={options.base} labels={options.mapLabels} {isSatellite} />
+      <MapVectorHandler
+        base={options.base}
+        labels={options.mapLabels}
+        zIndex={options.mapLabelsZIndex}
+        {isSatellite}
+      />
 
       <MapCustomLabelHandler labels={options.labels} zIndex={options.labelsZIndex} {isDark} />
 

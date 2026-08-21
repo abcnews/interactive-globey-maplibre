@@ -165,6 +165,8 @@ export function setLayerZIndex(map: MapLibreMap, layerId: string, zIndex: number
   const beforeId = findBeforeIdForZIndex(map, zIndex);
   const validBeforeId = beforeId && map.getLayer(beforeId) ? beforeId : undefined;
 
+  if (validBeforeId === layerId) return;
+
   map.moveLayer(layerId, validBeforeId);
 }
 
