@@ -154,6 +154,7 @@ export const geoJsonSpikeSchema = object({
  * Item schema for a single GeoJSON source dataset.
  */
 export const geoJsonItemSchema = object({
+  id: string().key('id').optional(),
   cmid: decimal().key('c'),
   type: oneOf(['areas', 'lines', 'points', 'spikes'] as const)
     .key('t')

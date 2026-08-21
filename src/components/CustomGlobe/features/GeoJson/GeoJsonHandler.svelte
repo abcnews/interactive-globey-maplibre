@@ -50,11 +50,11 @@
 </script>
 
 {#if allLoaded}
-  {#each config as item, index (item.cmid)}
+  {#each config as item, index (item.id || `${item.cmid}-${index}`)}
     <GeoJsonRenderer
       data={dataMap[item.cmid]}
       config={item}
-      sourceId={generateGeoJsonSourceId(item.cmid)}
+      sourceId={generateGeoJsonSourceId(item.id || `${item.cmid}-${index}`)}
       zIndex={item.zIndex ?? Z_INDEX_GEOJSON + index * 0.1}
     />
   {/each}

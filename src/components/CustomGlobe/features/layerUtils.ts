@@ -4,18 +4,18 @@ import type { ImageSourceConfig, GeoJsonConfig } from '$lib/marker';
 export * from './layerManager';
 
 /**
- * Generates a stable ID for GeoJSON sources based on the CMID.
+ * Generates a stable ID for GeoJSON sources based on the ID or CMID.
  */
-export function generateGeoJsonSourceId(cmid: number | string | undefined): string {
-  if (!cmid) return 'none';
-  return `gj-${cmid}`;
+export function generateGeoJsonSourceId(idOrCmid: number | string | undefined): string {
+  if (!idOrCmid) return 'none';
+  return `gj-${idOrCmid}`;
 }
 
 /**
  * Returns the layer IDs associated with a GeoJsonConfig.
  */
 export function getGeoJsonLayerIds(config: GeoJsonConfig): string[] {
-  const sourceId = generateGeoJsonSourceId(config.cmid);
+  const sourceId = generateGeoJsonSourceId(config.id || config.cmid);
   switch (config.type) {
     case 'areas':
       return [`${sourceId}-fill`, `${sourceId}-outline`];

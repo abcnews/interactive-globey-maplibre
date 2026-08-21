@@ -62,7 +62,7 @@
   const layers = $derived.by<LayerItem[]>(() => {
     const geojson: LayerItem[] = (options.geoJson || []).map((item, idx) => {
       const layerItem: LayerItem = {
-        id: `geojson-${item.cmid || idx}`,
+        id: `geojson-${item.id || item.cmid || idx}`,
         kind: 'geojson',
         name: item.type ? `${item.type.charAt(0).toUpperCase() + item.type.slice(1)}` : 'GeoJSON',
         description: item.cmid ? `CMID: ${item.cmid}` : 'No CMID',
@@ -155,7 +155,7 @@
 
     const defaultZ = kind === 'geojson' ? Z_INDEX_GEOJSON : Z_INDEX_IMAGE_LAYERS;
     const maxZ = layers.length > 0 ? Math.max(...layers.map(l => l.zIndex)) : defaultZ;
-    newLayerDraft = { zIndex: maxZ + 10 };
+    newLayerDraft = { id: Date.now().toString(), zIndex: maxZ + 10 };
   }
 
   function addBuiltInLabels() {

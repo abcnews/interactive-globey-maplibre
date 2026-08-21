@@ -95,7 +95,7 @@
     <GeoJsonConfigModal
       config={editingIndex !== null
         ? geoJsonList[editingIndex]
-        : ({ cmid: '' as any, type: 'areas', colourMode: 'simple', zIndex: Z_INDEX_GEOJSON } as any)}
+        : ({ id: Date.now().toString(), cmid: '' as any, type: 'areas', colourMode: 'simple', zIndex: Z_INDEX_GEOJSON } as any)}
       onsave={saveConfig}
       onclose={closeModal}
     />

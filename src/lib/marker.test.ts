@@ -210,6 +210,7 @@ describe('marker codecs', () => {
         mapLabelsZIndex: 520,
         geoJson: [
           {
+            id: 'gj-1',
             cmid: 12345678,
             type: 'areas',
             zIndex: 400,
@@ -222,6 +223,19 @@ describe('marker codecs', () => {
                   paletteType: 'custom',
                   customPalette: ['#ff0000', '#00ff00']
                 }
+              }
+            ]
+          },
+          {
+            id: 'gj-2',
+            cmid: 12345678,
+            type: 'lines',
+            zIndex: 410,
+            styles: [
+              {
+                colourMode: 'basic',
+                opacity: 0.8,
+                isOpaque: true
               }
             ]
           }
@@ -250,8 +264,14 @@ describe('marker codecs', () => {
       assert.strictEqual(decoded.labels![0].name, 'Melbourne');
       assert.strictEqual(decoded.labelsZIndex, 600);
       assert.strictEqual(decoded.mapLabelsZIndex, 520);
+      assert.strictEqual(decoded.geoJson?.length, 2);
+      assert.strictEqual(decoded.geoJson![0].id, 'gj-1');
       assert.strictEqual(decoded.geoJson![0].cmid, 12345678);
       assert.strictEqual(decoded.geoJson![0].zIndex, 400);
+      assert.strictEqual(decoded.geoJson![1].id, 'gj-2');
+      assert.strictEqual(decoded.geoJson![1].cmid, 12345678);
+      assert.strictEqual(decoded.geoJson![1].type, 'lines');
+      assert.strictEqual(decoded.geoJson![1].zIndex, 410);
       assert.deepStrictEqual(
         decoded.geoJson![0].styles?.[0].colourConfig?.customPalette,
         input.geoJson![0].styles[0].colourConfig?.customPalette
