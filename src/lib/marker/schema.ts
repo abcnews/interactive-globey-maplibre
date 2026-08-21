@@ -108,7 +108,7 @@ export const geoJsonColourConfigSchema = object({
   minColour: string().key('mc').optional(),
   maxColour: string().key('xc').optional(),
   basic: string().key('b').optional(),
-  basicType: oneOf(['normal', 'inverse'] as const)
+  basicType: oneOf(['normal', 'highlighted', 'custom'] as const)
     .key('bt')
     .optional(),
   paletteType: oneOf(['sequential', 'divergent', 'ramp', 'threshold', 'category', 'custom'] as const)

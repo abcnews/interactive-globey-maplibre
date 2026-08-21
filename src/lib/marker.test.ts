@@ -235,7 +235,10 @@ describe('marker codecs', () => {
               {
                 colourMode: 'basic',
                 opacity: 0.8,
-                isOpaque: true
+                isOpaque: true,
+                colourConfig: {
+                  basicType: 'highlighted'
+                }
               }
             ]
           }
@@ -275,6 +278,10 @@ describe('marker codecs', () => {
       assert.deepStrictEqual(
         decoded.geoJson![0].styles?.[0].colourConfig?.customPalette,
         input.geoJson![0].styles[0].colourConfig?.customPalette
+      );
+      assert.strictEqual(
+        decoded.geoJson![1].styles?.[0].colourConfig?.basicType,
+        'highlighted'
       );
       assert.strictEqual(decoded.imageSources?.length, 1);
       assert.strictEqual(decoded.imageSources![0].url, input.imageSources![0].url);
