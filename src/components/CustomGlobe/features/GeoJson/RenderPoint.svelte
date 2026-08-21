@@ -9,7 +9,7 @@
     getStrokeWidthExpression,
     getStrokeOpacityExpression
   } from './utils';
-  import { addLayerWithZIndex, removeLayerWithZIndex, setLayerZIndex, Z_INDEX_GEOJSON } from '../layerUtils';
+  import { addLayerWithZIndex, removeLayerWithZIndex, Z_INDEX_GEOJSON } from '../layerUtils';
 
   const mapRoot = getContext<{ map: Map }>('mapInstance');
 
@@ -27,25 +27,39 @@
 
   const layerId = $derived(`${sourceId}-circle`);
 
+  /**
+   * Applies paint properties for circle styling from the current config.
+   */
+  function updateStyles() {
+    const map = mapRoot.map;
+    const lid = layerId;
+    if (map && map.getLayer(lid)) {
+      map.setPaintProperty(lid, 'circle-color', getColourExpression(config, 'marker'));
+      map.setPaintProperty(lid, 'circle-radius', getCircleRadiusExpression(config));
+      map.setPaintProperty(lid, 'circle-opacity', getCircleOpacityExpression(config));
+      map.setPaintProperty(lid, 'circle-stroke-width', getStrokeWidthExpression(config));
+      map.setPaintProperty(lid, 'circle-stroke-color', getColourExpression(config, 'stroke'));
+      map.setPaintProperty(lid, 'circle-stroke-opacity', getStrokeOpacityExpression(config));
+    }
+  }
+
+  // Layer lifecycle: add/remove layer only on mount, unmount, and when map, sourceId, or zIndex changes
   $effect(() => {
-    // We want to re-run this effect ONLY if the map instance or sourceId changes.
-    // data and config changes are handled by other effects.
     const map = mapRoot.map;
     const sid = sourceId;
     const lid = layerId;
+    const targetZ = zIndex;
 
-    if (!map || !data) return;
+    if (!map) return;
 
     untrack(() => {
       // Add source if it doesn't exist
       if (!map.getSource(sid)) {
         map.addSource(sid, {
           type: 'geojson',
-          data: data
+          data: data || { type: 'FeatureCollection', features: [] }
         });
       }
-
-      const targetZ = zIndex ?? Z_INDEX_GEOJSON;
 
       // Add layer if source exists and layer doesn't
       if (map.getSource(sid) && !map.getLayer(lid)) {
@@ -56,12 +70,6 @@
             type: 'circle',
             source: sid,
             paint: {
-              'circle-color': getColourExpression(config, 'marker'),
-              'circle-radius': getCircleRadiusExpression(config),
-              'circle-opacity': getCircleOpacityExpression(config),
-              'circle-stroke-width': getStrokeWidthExpression(config),
-              'circle-stroke-color': getColourExpression(config, 'stroke'),
-              'circle-stroke-opacity': getStrokeOpacityExpression(config),
               'circle-pitch-scale': 'map',
               'circle-color-transition': { duration: 300 },
               'circle-radius-transition': { duration: 300 },
@@ -72,6 +80,7 @@
           },
           targetZ
         );
+        updateStyles();
       }
     });
 
@@ -92,26 +101,8 @@
 
   // Update Styles
   $effect(() => {
-    const map = mapRoot.map;
-    const lid = layerId;
-    if (map && map.getLayer(lid)) {
-      map.setPaintProperty(lid, 'circle-color', getColourExpression(config, 'marker'));
-      map.setPaintProperty(lid, 'circle-radius', getCircleRadiusExpression(config));
-      map.setPaintProperty(lid, 'circle-opacity', getCircleOpacityExpression(config));
-      map.setPaintProperty(lid, 'circle-stroke-width', getStrokeWidthExpression(config));
-      map.setPaintProperty(lid, 'circle-stroke-color', getColourExpression(config, 'stroke'));
-      map.setPaintProperty(lid, 'circle-stroke-opacity', getStrokeOpacityExpression(config));
-    }
-  });
-
-  // Update Z-Index when changed
-  $effect(() => {
-    const map = mapRoot.map;
-    const targetZ = zIndex ?? config.zIndex;
-    const lid = layerId;
-    if (!map || targetZ === undefined || !map.getLayer(lid)) return;
-
-    setLayerZIndex(map, lid, targetZ);
+    config;
+    updateStyles();
   });
 
   // Popups
