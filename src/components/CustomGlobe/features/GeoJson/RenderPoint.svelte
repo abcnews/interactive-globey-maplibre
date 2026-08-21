@@ -74,6 +74,7 @@
               'circle-color-transition': { duration: 300 },
               'circle-radius-transition': { duration: 300 },
               'circle-opacity-transition': { duration: 300 },
+              'circle-stroke-width-transition': { duration: 300 },
               'circle-stroke-color-transition': { duration: 300 },
               'circle-stroke-opacity-transition': { duration: 300 }
             }

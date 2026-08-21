@@ -80,7 +80,9 @@
               'line-join': 'round'
             },
             paint: {
-              'line-color': '#ffffff'
+              'line-color': '#ffffff',
+              'line-width-transition': { duration: 300 },
+              'line-opacity-transition': { duration: 300 }
             }
           },
           targetZ - SUB_LAYER_OUTLINE_OFFSET
@@ -101,7 +103,8 @@
             },
             paint: {
               'line-color-transition': { duration: 300 },
-              'line-opacity-transition': { duration: 300 }
+              'line-opacity-transition': { duration: 300 },
+              'line-width-transition': { duration: 300 }
             }
           },
           targetZ
