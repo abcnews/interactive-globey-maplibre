@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getContext, untrack } from 'svelte';
-  import { Popup, type Map, type GeoJSONSource } from 'maplibre-gl';
+  import type { Map, GeoJSONSource } from 'maplibre-gl';
   import type { GeoJsonConfig } from '../../../../lib/marker';
   import {
     getColourExpression,
@@ -103,45 +103,5 @@
   $effect(() => {
     config;
     updateStyles();
-  });
-
-  // Popups
-  $effect(() => {
-    const map = mapRoot.map;
-    const lid = layerId;
-    if (!map || !map.getLayer(lid)) return;
-
-    const popup = new Popup({
-      closeButton: true,
-      closeOnClick: true,
-      offset: 15
-    });
-
-    const handleEvent = (e: any) => {
-      const feature = e.features?.[0];
-      if (!feature) return;
-
-      const title = feature.properties?.title || feature.properties?.name;
-      const description = feature.properties?.description;
-
-      if (title || description) {
-        let content = '';
-        if (title) content += `<strong>${title}</strong><br>`;
-        if (description) content += description;
-
-        popup.setLngLat(e.lngLat).setHTML(content).addTo(map);
-      }
-    };
-
-    map.on('click', lid, handleEvent);
-    map.on('mouseenter', lid, () => (map.getCanvas().style.cursor = 'pointer'));
-    map.on('mouseleave', lid, () => {
-      map.getCanvas().style.cursor = '';
-    });
-
-    return () => {
-      map.off('click', lid, handleEvent);
-      popup.remove();
-    };
   });
 </script>
