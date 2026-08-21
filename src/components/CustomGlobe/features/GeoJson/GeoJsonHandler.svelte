@@ -28,6 +28,16 @@
           geojson = feature(rawData, rawData.objects[key]);
         }
       }
+
+      // Ensure every feature has a defined ID for MapLibre setFeatureState
+      if (geojson && geojson.type === 'FeatureCollection' && Array.isArray(geojson.features)) {
+        geojson.features.forEach((f: any, index: number) => {
+          if (f.id === undefined || f.id === null) {
+            f.id = index;
+          }
+        });
+      }
+
       return geojson;
     } catch (e) {
       console.error(`[GeoJsonHandler] Error loading CMID ${cmid}:`, e);

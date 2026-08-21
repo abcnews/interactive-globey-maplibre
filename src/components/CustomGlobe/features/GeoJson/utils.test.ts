@@ -1,18 +1,17 @@
 import { describe, it, expect, assert } from 'vitest';
 import {
-  getOpacityExpression,
-  getColourExpression,
   generateId,
-  getCircleRadiusExpression,
-  getCircleOpacityExpression,
-  getStrokeWidthExpression,
-  getStrokeOpacityExpression,
-  getFillOpacityExpression
+  getFeatureStateEvaluator,
+  getColourEvaluator,
+  getHeightEvaluator,
+  getPaletteInterpolator,
+  getKilometreZoomScaleExpression,
+  EARTH_CIRCUMFERENCE_KM,
+  TILE_SIZE_PX
 } from './utils.ts';
 import type { GeoJsonConfig } from '../../../../lib/marker';
-import { createExpression } from '@maplibre/maplibre-gl-style-spec';
 
-describe('GeoJson Utils', () => {
+describe('GeoJson Utils & Feature State Evaluators', () => {
   describe('generateId', () => {
     it('should generate stable IDs from URLs', () => {
       const url = 'https://example.com/data.json';
@@ -27,250 +26,109 @@ describe('GeoJson Utils', () => {
     });
   });
 
-  describe('getOpacityExpression', () => {
-    it('should return 1 if no filter is set', () => {
-      const config: GeoJsonConfig = { url: 'test', type: 'areas', styles: [{ colourMode: 'simple' }] };
-      assert.strictEqual(getOpacityExpression(config), 1);
-    });
-
-    it('should return 1 case expression if filter is set', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'areas',
-        styles: [
-          {
-            colourMode: 'simple',
-            filter: { prop: 'id', values: ['1', '2'] }
-          }
-        ]
-      };
-      const expected = ['case', ['in', ['to-string', ['coalesce', ['get', 'id'], '']], ['literal', ['1', '2']]], 1, 0];
-      assert.deepStrictEqual(getOpacityExpression(config), expected);
-    });
-
-    it('should handle multiple styles with filters', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'areas',
-        styles: [
-          {
-            colourMode: 'simple',
-            filter: { prop: 'id', values: ['A'] },
-            opacity: 0.5
-          },
-          {
-            colourMode: 'simple',
-            filter: { prop: 'id', values: ['B'] },
-            opacity: 0.8
-          },
-          {
-            colourMode: 'simple',
-            opacity: 1.0
-          }
-        ]
-      };
-      const expr = getOpacityExpression(config);
-      assert.deepStrictEqual(expr, [
-        'case',
-        ['==', ['to-string', ['coalesce', ['get', 'id'], '']], 'A'],
-        0.5,
-        ['==', ['to-string', ['coalesce', ['get', 'id'], '']], 'B'],
-        0.8,
-        1
-      ]);
+  describe('getKilometreZoomScaleExpression', () => {
+    it('should build an exponential zoom interpolation expression based on Earth circumference', () => {
+      const expr = getKilometreZoomScaleExpression(100);
+      assert.strictEqual(expr[0], 'interpolate');
+      assert.deepStrictEqual(expr[1], ['exponential', 2]);
+      assert.deepStrictEqual(expr[2], ['zoom']);
+      assert.strictEqual(expr[3], 0);
+      const expectedSizeAtZoom0 = (100 / EARTH_CIRCUMFERENCE_KM) * TILE_SIZE_PX;
+      assert.strictEqual(expr[4], expectedSizeAtZoom0);
+      assert.strictEqual(expr[5], 22);
+      assert.strictEqual(expr[6], expectedSizeAtZoom0 * Math.pow(2, 22));
     });
   });
 
-  describe('Radius and Stroke Expressions', () => {
-    it('should return preset radius (highlighted)', () => {
+  describe('Feature State Evaluator (Basic Mode)', () => {
+    it('should return preset normal styling by default', () => {
       const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'points',
-        styles: [{ colourMode: 'basic', colourConfig: { basicType: 'highlighted' } }]
-      };
-      assert.strictEqual(getCircleRadiusExpression(config), 8);
-    });
-
-    it('should return preset stroke width (highlighted)', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'points',
-        styles: [{ colourMode: 'basic', colourConfig: { basicType: 'highlighted' } }]
-      };
-      assert.strictEqual(getStrokeWidthExpression(config), 2);
-    });
-  });
-
-  describe('Opacity Expressions', () => {
-    it('should return preset circle opacity (highlighted)', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'points',
-        styles: [{ colourMode: 'basic', colourConfig: { basicType: 'highlighted' } }]
-      };
-      // baseOpacity 1 * 0.6 factor -> optimized to 0.6
-      assert.strictEqual(getCircleOpacityExpression(config), 0.6);
-    });
-
-    it('should return preset fill opacity (highlighted)', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'areas',
-        styles: [{ colourMode: 'basic', colourConfig: { basicType: 'highlighted' } }]
-      };
-      // baseOpacity 1 * 0.6 factor -> optimized to 0.6
-      assert.strictEqual(getFillOpacityExpression(config), 0.6);
-    });
-
-    it('should return preset stroke opacity (highlighted)', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'lines',
-        styles: [{ colourMode: 'basic', colourConfig: { basicType: 'highlighted' } }]
-      };
-      // baseOpacity 1 * 1.0 factor -> optimized to 1
-      assert.strictEqual(getStrokeOpacityExpression(config), 1);
-    });
-
-    it('should return 1.0 if isOpaque is true (points)', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'points',
-        styles: [{ colourMode: 'basic', isOpaque: true }]
-      };
-      assert.strictEqual(getCircleOpacityExpression(config), 1);
-    });
-
-    it('should factor baseOpacity into isOpaque (points)', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'points',
-        styles: [{ colourMode: 'basic', isOpaque: true, opacity: 0.5 }]
-      };
-      // baseOpacity 0.5 * 1.0 (isOpaque) -> 0.5
-      assert.deepStrictEqual(getCircleOpacityExpression(config), ['*', 0.5, 1]);
-    });
-
-    it('should return 1.0 if isOpaque is true (areas)', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'areas',
-        styles: [{ colourMode: 'basic', isOpaque: true }]
-      };
-      assert.strictEqual(getFillOpacityExpression(config), 1);
-    });
-
-    it('should factor baseOpacity into isOpaque (areas)', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'areas',
-        styles: [{ colourMode: 'basic', isOpaque: true, opacity: 0.5 }]
-      };
-      // baseOpacity 0.5 * 1.0 (isOpaque) -> 0.5
-      assert.deepStrictEqual(getFillOpacityExpression(config), ['*', 0.5, 1]);
-    });
-
-    it('should scale opacity linearly for fill layers', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'areas',
-        styles: [{ colourMode: 'basic', colourConfig: { basicType: 'normal' }, opacity: 0.5 }]
-      };
-      // CURRENT BUG: returns 0.5 instead of ['*', 0.5, 0.6]
-      // Fix will make it return ['*', 0.5, 0.6]
-      const expr = getFillOpacityExpression(config);
-      assert.deepStrictEqual(expr, ['*', 0.5, 0.6]);
-    });
-
-    it('should be consistent between single-style and multi-style opacity', () => {
-      const singleStyleConfig: GeoJsonConfig = {
-        url: 'test',
-        type: 'areas',
-        styles: [{ colourMode: 'basic', colourConfig: { basicType: 'normal' }, opacity: 0.5 }]
-      };
-      const multiStyleConfig: GeoJsonConfig = {
-        url: 'test',
-        type: 'areas',
-        styles: [
-          {
-            colourMode: 'basic',
-            colourConfig: { basicType: 'normal' },
-            opacity: 0.5,
-            filter: { prop: 'is_target', values: ['true'] }
-          },
-          {
-            colourMode: 'basic',
-            colourConfig: { basicType: 'normal' },
-            opacity: 0.5
-          }
-        ]
-      };
-
-      const singleExpr = getFillOpacityExpression(singleStyleConfig);
-      const multiExpr = getFillOpacityExpression(multiStyleConfig);
-
-      // They should both evaluate to the same thing for a matching feature
-      // singleExpr: ['*', 0.5, 0.6]
-      // multiExpr: ['*', ['case', ..., 0.5, 0.5], ['case', ..., 0.6, 0.6]]
-      assert.deepStrictEqual(singleExpr, ['*', 0.5, 0.6]);
-      assert.ok(Array.isArray(multiExpr), 'multiExpr should be an array');
-      assert.strictEqual(multiExpr[0], '*', 'multiExpr[0] should be *');
-    });
-  });
-
-  describe('getColourExpression (MapLibre Expressions)', () => {
-    it('should return basic colour', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'areas',
-        styles: [
-          {
-            colourMode: 'basic',
-            colourConfig: { basic: '#00ff00' }
-          }
-        ]
-      };
-      assert.strictEqual(getColourExpression(config, 'fill'), '#00ff00');
-    });
-
-    it('should return preset colours (normal/highlighted)', () => {
-      const normalConfig: GeoJsonConfig = {
-        url: 'test',
+        cmid: 12345,
         type: 'points',
         styles: [{ colourMode: 'basic', colourConfig: { basicType: 'normal' } }]
       };
-      assert.strictEqual(getColourExpression(normalConfig, 'marker'), '#00267E');
+      const evaluate = getFeatureStateEvaluator(config);
+      const state = evaluate({ properties: {} }, 0);
 
-      const highlightedConfig: GeoJsonConfig = {
-        url: 'test',
+      assert.strictEqual(state.color, '#00267E');
+      assert.strictEqual(state.radius, 6);
+      assert.strictEqual(state.strokeWidth, 1);
+      assert.strictEqual(state.fillOpacity, 0.6);
+      assert.strictEqual(state.strokeOpacity, 1.0);
+    });
+
+    it('should return preset highlighted styling', () => {
+      const config: GeoJsonConfig = {
+        cmid: 12345,
         type: 'points',
         styles: [{ colourMode: 'basic', colourConfig: { basicType: 'highlighted' } }]
       };
-      assert.strictEqual(getColourExpression(highlightedConfig, 'marker'), '#FF3C27');
+      const evaluate = getFeatureStateEvaluator(config);
+      const state = evaluate({ properties: {} }, 0);
+
+      assert.strictEqual(state.color, '#FF3C27');
+      assert.strictEqual(state.radius, 8);
+      assert.strictEqual(state.strokeWidth, 2);
+      assert.strictEqual(state.fillOpacity, 0.6);
+      assert.strictEqual(state.strokeOpacity, 1.0);
     });
 
-    it('should return stroke colour from property (simple mode)', () => {
-      const config: GeoJsonConfig = { url: 'test', type: 'lines', styles: [{ colourMode: 'simple' }] };
-      const expr = getColourExpression(config, 'stroke');
-      assert.deepStrictEqual(expr, ['coalesce', ['get', 'stroke'], '#00267E']);
-    });
-
-    it('should return marker colour (simple mode)', () => {
-      const config: GeoJsonConfig = { url: 'test', type: 'points', styles: [{ colourMode: 'simple' }] };
-      const expr = getColourExpression(config, 'marker');
-      assert.deepStrictEqual(expr, [
-        'coalesce',
-        ['get', 'marker-color'],
-        ['get', 'stroke'],
-        ['get', 'fill'],
-        ['get', 'fill-color'],
-        '#00267E'
-      ]);
-    });
-
-    it('should generate interpolate expression for sequential palette', () => {
+    it('should respect custom basic colour', () => {
       const config: GeoJsonConfig = {
-        url: 'test',
+        cmid: 12345,
+        type: 'areas',
+        styles: [{ colourMode: 'basic', colourConfig: { basic: '#00ff00' } }]
+      };
+      const evaluate = getFeatureStateEvaluator(config);
+      const state = evaluate({ properties: {} }, 0);
+
+      assert.strictEqual(state.fillColor, '#00ff00');
+    });
+
+    it('should respect isOpaque setting', () => {
+      const config: GeoJsonConfig = {
+        cmid: 12345,
+        type: 'areas',
+        styles: [{ colourMode: 'basic', isOpaque: true, opacity: 0.8 }]
+      };
+      const evaluate = getFeatureStateEvaluator(config);
+      const state = evaluate({ properties: {} }, 0);
+
+      assert.strictEqual(state.fillOpacity, 0.8);
+    });
+  });
+
+  describe('Feature State Evaluator (Simple Mode)', () => {
+    it('should extract styling from feature properties', () => {
+      const config: GeoJsonConfig = {
+        cmid: 12345,
+        type: 'points',
+        styles: [{ colourMode: 'simple' }]
+      };
+      const evaluate = getFeatureStateEvaluator(config);
+      const feature = {
+        properties: {
+          'marker-color': '#112233',
+          'marker-size': 'large',
+          'stroke-width': 3,
+          'stroke-opacity': 0.7,
+          'fill-opacity': 0.4
+        }
+      };
+      const state = evaluate(feature, 0);
+
+      assert.strictEqual(state.color, '#112233');
+      assert.strictEqual(state.radius, 9);
+      assert.strictEqual(state.strokeWidth, 3);
+      assert.strictEqual(state.strokeOpacity, 0.7);
+      assert.strictEqual(state.fillOpacity, 0.4);
+    });
+  });
+
+  describe('Feature State Evaluator (Scale Mode)', () => {
+    it('should interpolate colours for sequential palette', () => {
+      const config: GeoJsonConfig = {
+        cmid: 12345,
         type: 'points',
         styles: [
           {
@@ -285,199 +143,18 @@ describe('GeoJson Utils', () => {
           }
         ]
       };
-      const expr = getColourExpression(config, 'marker');
-      assert.strictEqual(expr[0], 'interpolate');
-      assert.strictEqual(expr[1][0], 'linear');
-      assert.strictEqual(expr[2][1], 'val');
-      // Stops: [val, colour, val, colour, ...]
-      assert.strictEqual(expr[3], 0);
-      assert.strictEqual(expr[5], 25);
-      assert.strictEqual(expr[11], 100);
+      const evaluate = getFeatureStateEvaluator(config);
+      const state0 = evaluate({ properties: { val: 0 } }, 0);
+      const state100 = evaluate({ properties: { val: 100 } }, 1);
+
+      assert.ok(state0.color);
+      assert.ok(state100.color);
+      assert.notStrictEqual(state0.color, state100.color);
     });
 
-    it('should generate interpolate expression for divergent palette', () => {
+    it('should interpolate minColour to maxColour linearly', () => {
       const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'areas',
-        styles: [
-          {
-            colourMode: 'scale',
-            colourProp: 'val',
-            colourConfig: {
-              min: -100,
-              max: 100,
-              paletteType: 'divergent',
-              paletteVariant: 'RedBlue'
-            }
-          }
-        ]
-      };
-      const expr = getColourExpression(config, 'fill');
-      assert.strictEqual(expr[0], 'interpolate');
-      assert.strictEqual(expr[3], -100);
-      assert.strictEqual(expr[7], 0); // Middle stop
-      assert.strictEqual(expr[11], 100);
-    });
-
-    it('should fallback to manual colours if palette variant is invalid', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'areas',
-        styles: [
-          {
-            colourMode: 'scale',
-            colourProp: 'val',
-            colourConfig: {
-              min: 0,
-              max: 100,
-              paletteType: 'sequential',
-              paletteVariant: 'invalid-variant',
-              minColour: '#ff0000',
-              maxColour: '#0000ff'
-            }
-          }
-        ]
-      };
-      const expr = getColourExpression(config, 'fill');
-      assert.deepStrictEqual(expr, ['interpolate', ['linear'], ['get', 'val'], 0, '#ff0000', 100, '#0000ff']);
-    });
-
-    it('should handle multiple styles with filters', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'points',
-        styles: [
-          {
-            colourMode: 'basic',
-            colourConfig: { basic: '#ff0000' },
-            filter: { prop: 'type', values: ['A'] }
-          },
-          {
-            colourMode: 'basic',
-            colourConfig: { basic: '#00ff00' }
-          }
-        ]
-      };
-      const expr = getColourExpression(config, 'marker');
-      assert.deepStrictEqual(expr, [
-        'case',
-        ['==', ['to-string', ['coalesce', ['get', 'type'], '']], 'A'],
-        '#ff0000',
-        '#00ff00'
-      ]);
-    });
-    it('should validate multi-style colour expression with MapLibre', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'points',
-        styles: [
-          {
-            colourMode: 'basic',
-            colourConfig: { basic: '#ff0000' },
-            filter: { prop: 'type', values: ['A'] }
-          },
-          {
-            colourMode: 'basic',
-            colourConfig: { basic: '#00ff00' }
-          }
-        ]
-      };
-      const expr = getColourExpression(config, 'marker');
-
-      const colorSpec = { type: 'color' } as any;
-
-      // Verification using MapLibre style-spec validator
-      const result = createExpression(expr, 'paint.circle-color', colorSpec);
-      if (result.result === 'error') {
-        console.error('Expression failed validation:', JSON.stringify(expr, null, 2));
-        console.error('Errors:', result.value);
-        assert.fail('Expression should be valid');
-      }
-
-      const expression = (result as any).value;
-      const globals = { zoom: 10 } as any;
-
-      // Test Feature A
-      const featureA = {
-        type: 'Point',
-        properties: { type: 'A' }
-      } as any;
-      const resA = expression.evaluate(globals, featureA);
-      assert.strictEqual(resA.r, 1);
-      assert.strictEqual(resA.g, 0);
-      assert.strictEqual(resA.b, 0);
-
-      // Test Feature B (Fallback)
-      const featureB = {
-        type: 'Point',
-        properties: { type: 'B' }
-      } as any;
-      const resB = expression.evaluate(globals, featureB);
-      assert.strictEqual(resB.r, 0);
-      assert.strictEqual(resB.g, 1);
-      assert.strictEqual(resB.b, 0);
-
-      // Test Feature with missing property (Fallback)
-      const featureC = {
-        type: 'Point',
-        properties: {}
-      } as any;
-      const resC = expression.evaluate(globals, featureC);
-      assert.strictEqual(resC.r, 0);
-      assert.strictEqual(resC.g, 1);
-      assert.strictEqual(resC.b, 0);
-    });
-
-    it('should correctly handle the user reported case (status filter)', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
-        type: 'points',
-        styles: [
-          {
-            colourMode: 'basic',
-            colourConfig: { basic: '#004cff' }, // Blue
-            filter: { prop: 'status', values: ['hit'] }
-          },
-          {
-            colourMode: 'basic',
-            colourConfig: { basic: '#ff0000' } // Red
-          }
-        ]
-      };
-
-      const expr = getColourExpression(config, 'marker');
-      assert.deepStrictEqual(expr, [
-        'case',
-        ['==', ['to-string', ['coalesce', ['get', 'status'], '']], 'hit'],
-        '#004cff',
-        '#ff0000'
-      ]);
-
-      const result = createExpression(expr, 'paint.circle-color', { type: 'color' } as any);
-      assert.strictEqual(result.result, 'success');
-
-      const expression = (result as any).value;
-      const globals = { zoom: 10 } as any;
-
-      // Feature with status: "hit" -> should be Blue
-      const resBlue = expression.evaluate(globals, { properties: { status: 'hit' } } as any);
-      assert.strictEqual(resBlue.r, 0);
-      assert.strictEqual(resBlue.b, 1);
-
-      // Feature with status: "miss" -> should be Red
-      const resRed = expression.evaluate(globals, { properties: { status: 'miss' } } as any);
-      assert.strictEqual(resRed.r, 1);
-      assert.strictEqual(resRed.b, 0);
-
-      // Feature without status -> should be Red
-      const resNoStatus = expression.evaluate(globals, { properties: {} } as any);
-      assert.strictEqual(resNoStatus.r, 1);
-      assert.strictEqual(resNoStatus.b, 0);
-    });
-
-    it('should evaluate scale-based colours correctly', () => {
-      const config: GeoJsonConfig = {
-        url: 'test',
+        cmid: 12345,
         type: 'points',
         styles: [
           {
@@ -492,78 +169,96 @@ describe('GeoJson Utils', () => {
           }
         ]
       };
-      const expr = getColourExpression(config, 'marker');
-      const colorSpec = { type: 'color' } as any;
-      const result = createExpression(expr, 'paint.circle-color', colorSpec);
-      if (result.result === 'error') {
-        console.error('Expression failed validation:', JSON.stringify(expr, null, 2));
-        console.error('Errors:', result.value);
-        assert.fail('Invalid expression');
-      }
+      const evaluate = getFeatureStateEvaluator(config);
+      const state0 = evaluate({ properties: { val: 0 } }, 0);
+      const state100 = evaluate({ properties: { val: 100 } }, 1);
 
-      const expression = (result as any).value;
-      const globals = { zoom: 10 } as any;
-
-      const resMin = expression.evaluate(globals, { type: 'Point', properties: { val: 0 } } as any);
-      assert.strictEqual(resMin.r, 0);
-      assert.strictEqual(resMin.g, 0);
-      assert.strictEqual(resMin.b, 0);
-
-      const resMax = expression.evaluate(globals, { type: 'Point', properties: { val: 100 } } as any);
-      assert.strictEqual(resMax.r, 1);
-      assert.strictEqual(resMax.g, 1);
-      assert.strictEqual(resMax.b, 1);
-
-      const resMid = expression.evaluate(globals, { type: 'Point', properties: { val: 50 } } as any);
-      // Linear interpolation should be roughly 0.5
-      assert.ok(Math.abs(resMid.r - 0.5) < 0.01);
-      assert.ok(Math.abs(resMid.g - 0.5) < 0.01);
-      assert.ok(Math.abs(resMid.b - 0.5) < 0.01);
+      assert.strictEqual(state0.color, '#000000');
+      assert.strictEqual(state100.color, '#ffffff');
     });
+  });
 
-    it('should evaluate custom palettes correctly', () => {
+  describe('Feature State Evaluator (Filtered Multi-Style Rules)', () => {
+    it('should match filter rules and fallback correctly', () => {
       const config: GeoJsonConfig = {
-        url: 'test',
+        cmid: 12345,
         type: 'points',
         styles: [
           {
-            colourMode: 'scale',
-            colourProp: 'val',
-            colourConfig: {
-              min: 0,
-              max: 2,
-              paletteType: 'custom',
-              customPalette: ['#ff0000', '#00ff00', '#0000ff']
-            }
+            colourMode: 'basic',
+            colourConfig: { basic: '#004cff' },
+            filter: { prop: 'status', values: ['hit'] }
+          },
+          {
+            colourMode: 'basic',
+            colourConfig: { basic: '#ff0000' }
           }
         ]
       };
-      const expr = getColourExpression(config, 'marker');
-      const colorSpec = { type: 'color' } as any;
-      const result = createExpression(expr, 'paint.circle-color', colorSpec);
-      if (result.result === 'error') {
-        console.error('Expression failed validation:', JSON.stringify(expr, null, 2));
-        console.error('Errors:', result.value);
-        assert.fail('Invalid expression');
-      }
 
-      const expression = (result as any).value;
-      const globals = { zoom: 10 } as any;
+      const evaluate = getFeatureStateEvaluator(config);
 
-      const res0 = expression.evaluate(globals, { type: 'Point', properties: { val: 0 } } as any);
-      assert.strictEqual(res0.r, 1);
-      assert.strictEqual(res0.g, 0);
-      assert.strictEqual(res0.b, 0);
+      const hitState = evaluate({ properties: { status: 'hit' } }, 0);
+      assert.strictEqual(hitState.color, '#004cff');
 
-      const res1 = expression.evaluate(globals, { type: 'Point', properties: { val: 1 } } as any);
-      assert.strictEqual(res1.r, 0);
-      assert.strictEqual(res1.g, 1);
-      assert.strictEqual(res1.b, 0);
+      const missState = evaluate({ properties: { status: 'miss' } }, 1);
+      assert.strictEqual(missState.color, '#ff0000');
 
-      const res2 = expression.evaluate(globals, { type: 'Point', properties: { val: 2 } } as any);
-      assert.strictEqual(res2.r, 0);
-      assert.strictEqual(res2.g, 0);
-      assert.strictEqual(res2.b, 1);
+      const noPropState = evaluate({ properties: {} }, 2);
+      assert.strictEqual(noPropState.color, '#ff0000');
+    });
+
+    it('should hide features that do not match any filter rule when all rules have filters', () => {
+      const config: GeoJsonConfig = {
+        cmid: 12345,
+        type: 'points',
+        styles: [
+          {
+            colourMode: 'basic',
+            colourConfig: { basic: '#004cff' },
+            filter: { prop: 'category', values: ['active'] }
+          }
+        ]
+      };
+
+      const evaluate = getFeatureStateEvaluator(config);
+
+      const activeState = evaluate({ properties: { category: 'active' } }, 0);
+      assert.strictEqual(activeState.color, '#004cff');
+      assert.strictEqual(activeState.opacity, 0.6);
+
+      const inactiveState = evaluate({ properties: { category: 'inactive' } }, 1);
+      assert.strictEqual(inactiveState.opacity, 0);
+      assert.strictEqual(inactiveState.fillOpacity, 0);
+      assert.strictEqual(inactiveState.strokeOpacity, 0);
+    });
+  });
+
+  describe('getColourEvaluator & getHeightEvaluator', () => {
+    it('should return colour directly for spikes', () => {
+      const config: GeoJsonConfig = {
+        cmid: 12345,
+        type: 'spikes',
+        styles: [{ colourMode: 'basic', colourConfig: { basic: '#123456' } }]
+      };
+      const evaluator = getColourEvaluator(config);
+      assert.strictEqual(evaluator({ properties: {} }), '#123456');
+    });
+
+    it('should calculate spike height properly', () => {
+      const config: GeoJsonConfig = {
+        cmid: 12345,
+        type: 'spikes',
+        spike: {
+          heightProp: 'pop',
+          min: 0,
+          max: 100,
+          scalar: 100000
+        }
+      };
+      const heightEvaluator = getHeightEvaluator(config);
+      const h50 = heightEvaluator({ hVal: 50 });
+      assert.strictEqual(h50, 50000);
     });
   });
 });

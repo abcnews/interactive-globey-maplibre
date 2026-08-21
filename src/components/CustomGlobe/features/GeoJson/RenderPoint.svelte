@@ -2,13 +2,7 @@
   import { getContext, untrack } from 'svelte';
   import type { Map, GeoJSONSource } from 'maplibre-gl';
   import type { GeoJsonConfig } from '../../../../lib/marker';
-  import {
-    getColourExpression,
-    getCircleRadiusExpression,
-    getCircleOpacityExpression,
-    getStrokeWidthExpression,
-    getStrokeOpacityExpression
-  } from './utils';
+  import { applyFeatureStates, getKilometreZoomScaleExpression } from './utils';
   import { addLayerWithZIndex, removeLayerWithZIndex, Z_INDEX_GEOJSON } from '../layerUtils';
 
   const mapRoot = getContext<{ map: Map }>('mapInstance');
@@ -26,22 +20,6 @@
   } = $props();
 
   const layerId = $derived(`${sourceId}-circle`);
-
-  /**
-   * Applies paint properties for circle styling from the current config.
-   */
-  function updateStyles() {
-    const map = mapRoot.map;
-    const lid = layerId;
-    if (map && map.getLayer(lid)) {
-      map.setPaintProperty(lid, 'circle-color', getColourExpression(config, 'marker'));
-      map.setPaintProperty(lid, 'circle-radius', getCircleRadiusExpression(config));
-      map.setPaintProperty(lid, 'circle-opacity', getCircleOpacityExpression(config));
-      map.setPaintProperty(lid, 'circle-stroke-width', getStrokeWidthExpression(config));
-      map.setPaintProperty(lid, 'circle-stroke-color', getColourExpression(config, 'stroke'));
-      map.setPaintProperty(lid, 'circle-stroke-opacity', getStrokeOpacityExpression(config));
-    }
-  }
 
   // Layer lifecycle: add/remove layer only on mount, unmount, and when map, sourceId, or zIndex changes
   $effect(() => {
@@ -71,17 +49,27 @@
             source: sid,
             paint: {
               'circle-pitch-scale': 'map',
+              'circle-color': ['coalesce', ['feature-state', 'color'], '#00267e'],
+              'circle-radius':
+                config.pointSize?.unit === 'k'
+                  ? getKilometreZoomScaleExpression(config.pointSize.value)
+                  : ['coalesce', ['feature-state', 'radius'], 6],
+              'circle-opacity': ['coalesce', ['feature-state', 'opacity'], 1],
+              'circle-stroke-color': ['coalesce', ['feature-state', 'strokeColor'], '#ffffff'],
+              'circle-stroke-width': ['coalesce', ['feature-state', 'strokeWidth'], 0],
+              'circle-stroke-opacity': ['coalesce', ['feature-state', 'strokeOpacity'], 1],
               'circle-color-transition': { duration: 300 },
               'circle-radius-transition': { duration: 300 },
               'circle-opacity-transition': { duration: 300 },
-              'circle-stroke-width-transition': { duration: 300 },
               'circle-stroke-color-transition': { duration: 300 },
+              'circle-stroke-width-transition': { duration: 300 },
               'circle-stroke-opacity-transition': { duration: 300 }
             }
           },
           targetZ
         );
-        updateStyles();
+
+        applyFeatureStates(map, sid, data, config);
       }
     });
 
@@ -97,12 +85,17 @@
     const sid = sourceId;
     if (map && map.getSource(sid) && data) {
       (map.getSource(sid) as GeoJSONSource).setData(data);
+      applyFeatureStates(map, sid, data, config);
     }
   });
 
-  // Update Styles
+  // Update Styles on config changes
   $effect(() => {
+    const map = mapRoot.map;
+    const sid = sourceId;
     config;
-    updateStyles();
+    if (map && map.getSource(sid) && data) {
+      applyFeatureStates(map, sid, data, config);
+    }
   });
 </script>

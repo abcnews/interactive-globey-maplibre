@@ -2,7 +2,7 @@
   import { getContext, untrack } from 'svelte';
   import type { Map, GeoJSONSource } from 'maplibre-gl';
   import type { GeoJsonConfig } from '../../../../lib/marker';
-  import { getColourExpression, getStrokeOpacityExpression, getStrokeWidthExpression } from './utils';
+  import { applyFeatureStates, getKilometreZoomScaleExpression } from './utils';
   import {
     addLayerWithZIndex,
     removeLayerWithZIndex,
@@ -26,27 +26,6 @@
 
   const layerId = $derived(`${sourceId}-line`);
   const outlineLayerId = $derived(`${sourceId}-line-outline`);
-
-  /**
-   * Applies paint properties for main stroke and outline styling from the current config.
-   */
-  function updateStyles() {
-    const map = mapRoot.map;
-    const lid = layerId;
-    const olid = outlineLayerId;
-
-    if (map) {
-      if (map.getLayer(olid)) {
-        map.setPaintProperty(olid, 'line-opacity', getStrokeOpacityExpression(config));
-        map.setPaintProperty(olid, 'line-width', ['+', getStrokeWidthExpression(config), 2]);
-      }
-      if (map.getLayer(lid)) {
-        map.setPaintProperty(lid, 'line-color', getColourExpression(config, 'stroke'));
-        map.setPaintProperty(lid, 'line-opacity', getStrokeOpacityExpression(config));
-        map.setPaintProperty(lid, 'line-width', getStrokeWidthExpression(config));
-      }
-    }
-  }
 
   // Layer lifecycle: add/remove layer only on mount, unmount, and when map, sourceId, or zIndex changes
   $effect(() => {
@@ -80,9 +59,12 @@
               'line-join': 'round'
             },
             paint: {
-              'line-color': '#ffffff',
+              'line-color': ['coalesce', ['feature-state', 'outlineColor'], '#ffffff'],
+              'line-width': ['coalesce', ['feature-state', 'outlineWidth'], 4],
+              'line-opacity': ['coalesce', ['feature-state', 'strokeOpacity'], 1],
               'line-width-transition': { duration: 300 },
-              'line-opacity-transition': { duration: 300 }
+              'line-opacity-transition': { duration: 300 },
+              'line-color-transition': { duration: 300 }
             }
           },
           targetZ - SUB_LAYER_OUTLINE_OFFSET
@@ -102,6 +84,12 @@
               'line-join': 'round'
             },
             paint: {
+              'line-color': ['coalesce', ['feature-state', 'strokeColor'], '#00267e'],
+              'line-width':
+                config.lineWidth?.unit === 'k'
+                  ? getKilometreZoomScaleExpression(config.lineWidth.value)
+                  : ['coalesce', ['feature-state', 'strokeWidth'], 2],
+              'line-opacity': ['coalesce', ['feature-state', 'strokeOpacity'], 1],
               'line-color-transition': { duration: 300 },
               'line-opacity-transition': { duration: 300 },
               'line-width-transition': { duration: 300 }
@@ -111,7 +99,7 @@
         );
       }
 
-      updateStyles();
+      applyFeatureStates(map, sid, data, config);
     });
 
     return () => {
@@ -127,12 +115,17 @@
     const sid = sourceId;
     if (map && map.getSource(sid) && data) {
       (map.getSource(sid) as GeoJSONSource).setData(data);
+      applyFeatureStates(map, sid, data, config);
     }
   });
 
-  // Update Styles
+  // Update Styles on config change
   $effect(() => {
+    const map = mapRoot.map;
+    const sid = sourceId;
     config;
-    updateStyles();
+    if (map && map.getSource(sid) && data) {
+      applyFeatureStates(map, sid, data, config);
+    }
   });
 </script>

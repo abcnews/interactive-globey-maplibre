@@ -1,3 +1,4 @@
+import type { Map } from 'maplibre-gl';
 import {
   getDivergentContinuousPaletteInterpolator,
   SequentialPalette,
@@ -11,11 +12,48 @@ import { THEMES } from './themes';
 
 export { generateGeoJsonSourceId as generateId, getLabelAnchor } from '../layerUtils';
 
+/** Earth equatorial circumference in kilometres */
+export const EARTH_CIRCUMFERENCE_KM = 40075;
+
+/** Standard Web Mercator tile size in pixels at zoom 0 */
+export const TILE_SIZE_PX = 512;
+
+/**
+ * Generates a MapLibre zoom-interpolation expression to scale kilometre-based dimensions (points or lines)
+ * so that they maintain constant real-world physical size on the globe across zoom levels.
+ *
+ * @param valueInKm Width or radius in kilometres
+ */
+export function getKilometreZoomScaleExpression(valueInKm: number): any {
+  const sizeAtZoom0 = (valueInKm / EARTH_CIRCUMFERENCE_KM) * TILE_SIZE_PX;
+  return [
+    'interpolate',
+    ['exponential', 2],
+    ['zoom'],
+    0,
+    sizeAtZoom0,
+    22,
+    sizeAtZoom0 * Math.pow(2, 22)
+  ];
+}
+
+export interface GeoJsonFeatureState {
+  color: string;
+  fillColor: string;
+  strokeColor: string;
+  outlineColor: string;
+  radius: number;
+  strokeWidth: number;
+  outlineWidth: number;
+  opacity: number;
+  fillOpacity: number;
+  strokeOpacity: number;
+}
+
 /**
  * Creates a colour interpolation function based on the builder's configuration.
- * This serves as the single source of truth for colour scaling, ensuring that
- * MapLibre expressions (used for points) and direct evaluation (used for spikes)
- * remain perfectly synchronised.
+ * This serves as the single source of truth for colour scaling across 2D layers
+ * and 3D spikes.
  *
  * @param style The GeoJSON style configuration
  * @returns An interpolator function for mapping 0-1 values to CSS colours
@@ -41,542 +79,211 @@ export function getPaletteInterpolator(style: GeoJsonStyleConfig): ((t: number) 
 }
 
 /**
- * Maps GeoJSON configuration to a MapLibre styling expression.
- * This is used for layers rendered natively by MapLibre (Fill, Line, Circle)
- * to offload style evaluation to the GPU.
+ * Creates a single style evaluator for computing per-feature style state.
  */
-export function getColourExpression(config: GeoJsonConfig, context: 'fill' | 'stroke' | 'marker'): any {
-  if (!config.styles || config.styles.length === 0) return '#888888';
+function getSingleStyleEvaluator(
+  config: GeoJsonConfig,
+  style: GeoJsonStyleConfig
+): (feature: any, index: number) => GeoJsonFeatureState {
+  const baseOpacity = style.opacity ?? 1;
+  const isOpaque = style.isOpaque ?? false;
+  const colourMode = style.colourMode || 'basic';
+  const colourConfig = style.colourConfig;
+  const colourProp = style.colourProp;
 
-  // If there's only one style and it has no filter, we can keep it simple
-  if (config.styles.length === 1 && !config.styles[0].filter?.prop) {
-    return getSingleStyleColourExpression(config.styles[0], context);
-  }
+  const interpolator = colourMode === 'scale' ? getPaletteInterpolator(style) : null;
+  const min = colourConfig?.min ?? 0;
+  const max = colourConfig?.max ?? 100;
+  const range = max - min || 1;
+  const minColour = colourConfig?.minColour || '#ffffff';
+  const maxColour = colourConfig?.maxColour || '#ff0000';
 
-  // Otherwise, we build a case expression
-  const caseExpr: any[] = ['case'];
+  const basicPreset = THEMES[colourConfig?.basicType || 'normal'] || THEMES.normal;
+  const basicColor = colourConfig?.basicType ? basicPreset.color : colourConfig?.basic || basicPreset.color;
 
-  for (const style of config.styles) {
-    const expr = getSingleStyleColourExpression(style, context);
+  return (feature: any) => {
+    const props = feature?.properties || {};
 
-    if (style.filter?.prop && style.filter.values) {
-      const propExpr = ['to-string', ['coalesce', ['get', style.filter.prop], '']];
-      const matchExpr =
-        style.filter.values.length === 1
-          ? ['==', propExpr, String(style.filter.values[0])]
-          : ['in', propExpr, ['literal', style.filter.values.map(String)]];
+    // 1. Calculate color / fillColor / strokeColor
+    let markerColor = basicColor;
+    let strokeColor = basicColor;
+    let fillColor = basicColor;
 
-      caseExpr.push(matchExpr, expr);
-    } else {
-      // Catch-all style (no filter)
-      caseExpr.push(expr);
-      return caseExpr;
-    }
-  }
-
-  // Final fallback if no rules matched
-  caseExpr.push('#888888');
-  return caseExpr;
-}
-
-function getSingleStyleColourExpression(style: GeoJsonStyleConfig, context: 'fill' | 'stroke' | 'marker'): any {
-  if (style.colourMode === 'basic') {
-    const preset = THEMES[style.colourConfig?.basicType || 'custom'];
-    if (preset) return preset.color;
-    return style.colourConfig?.basic || '#ff0000';
-  }
-
-  if (style.colourMode === 'simple') {
-    if (context === 'marker') {
-      return [
-        'coalesce',
-        ['get', 'marker-color'],
-        ['get', 'stroke'],
-        ['get', 'fill'],
-        ['get', 'fill-color'],
-        '#00267E'
-      ];
-    }
-    if (context === 'stroke') {
-      return ['coalesce', ['get', 'stroke'], '#00267E'];
-    }
-    return ['coalesce', ['get', 'fill'], ['get', 'fill-color'], '#00267E'];
-  }
-
-  if (style.colourMode === 'scale' && style.colourProp) {
-    const min = style.colourConfig?.min ?? 0;
-    const max = style.colourConfig?.max ?? 100;
-    const interpolator = getPaletteInterpolator(style);
-
-    if (interpolator) {
-      const stops: any[] = [];
-      const numStops =
-        style.colourConfig?.paletteType === 'custom' ? style.colourConfig?.customPalette?.length || 5 : 5;
-      for (let i = 0; i < numStops; i++) {
-        const t = i / (numStops - 1);
-        const val = min + t * (max - min);
-
-        // Sample the shared interpolator to generate discrete stops for the GL layer
-        stops.push(val, (interpolator as any)(t));
-      }
-
-      return ['interpolate', ['linear'], ['get', style.colourProp], ...stops];
-    }
-
-    const minColour = style.colourConfig?.minColour || '#ffffff';
-    const maxColour = style.colourConfig?.maxColour || '#ff0000';
-
-    return ['interpolate', ['linear'], ['get', style.colourProp], min, minColour, max, maxColour];
-  }
-
-  return '#888888';
-}
-
-/**
- * Creates a high-performance colour evaluator function.
- * This hoists configuration lookups and interpolator creation out of the evaluation logic.
- */
-/**
- * Creates a high-performance colour evaluator function.
- * This hoists configuration lookups and interpolator creation out of the evaluation logic.
- */
-export function getColourEvaluator(config: GeoJsonConfig): (feature: any) => string {
-  if (!config.styles || config.styles.length === 0) return () => '#888888';
-
-  const evaluators = config.styles.map(style => ({
-    filter: style.filter,
-    evaluate: getSingleStyleColourEvaluator(style)
-  }));
-
-  return feature => {
-    for (const { filter, evaluate } of evaluators) {
-      if (filter?.prop && filter.values) {
-        const val = String(feature.properties?.[filter.prop]);
-        if (filter.values.includes(val)) {
-          return evaluate(feature);
-        }
+    if (colourMode === 'basic') {
+      markerColor = basicColor;
+      strokeColor = basicColor;
+      fillColor = basicColor;
+    } else if (colourMode === 'simple') {
+      markerColor = props['marker-color'] || props['stroke'] || props['fill'] || props['fill-color'] || '#00267E';
+      strokeColor = props['stroke'] || '#00267E';
+      fillColor = props['fill'] || props['fill-color'] || '#00267E';
+    } else if (colourMode === 'scale') {
+      let val = Number(props[colourProp || ''] ?? feature?.cVal ?? 0);
+      if (isNaN(val)) val = 0;
+      const factor = Math.max(0, Math.min(1, (val - min) / range));
+      let evaluatedColour = '#888888';
+      if (interpolator) {
+        evaluatedColour = interpolator(factor);
+      } else if (val <= min) {
+        evaluatedColour = minColour;
+      } else if (val >= max) {
+        evaluatedColour = maxColour;
       } else {
-        // Catch-all
-        return evaluate(feature);
+        evaluatedColour = interpolateColour(minColour, maxColour, factor);
       }
+      markerColor = evaluatedColour;
+      strokeColor = evaluatedColour;
+      fillColor = evaluatedColour;
     }
-    return '#888888';
+
+    // 2. Calculate opacities
+    let fillOpacityFactor = basicPreset.fillOpacity;
+    let strokeOpacityFactor = basicPreset.strokeOpacity;
+
+    if (colourMode === 'simple') {
+      fillOpacityFactor = Number(props['fill-opacity']) || (isOpaque ? 1.0 : 0.5);
+      strokeOpacityFactor = Number(props['stroke-opacity']) || 1.0;
+    } else if (isOpaque) {
+      fillOpacityFactor = 1.0;
+    }
+
+    const calculatedFillOpacity = baseOpacity * fillOpacityFactor;
+    const calculatedStrokeOpacity = baseOpacity * strokeOpacityFactor;
+    const calculatedCircleOpacity =
+      colourMode === 'simple' && props['opacity'] !== undefined
+        ? baseOpacity * Number(props['opacity'])
+        : calculatedFillOpacity;
+
+    // 3. Calculate radius & stroke width
+    let radius = basicPreset.radius;
+    if (config.pointSize && config.pointSize.unit === 'p') {
+      radius = config.pointSize.value;
+    } else if (colourMode === 'simple') {
+      const sizeProp = props['marker-size'];
+      if (sizeProp === 'small') radius = 4;
+      else if (sizeProp === 'large') radius = 9;
+      else if (sizeProp !== undefined && !isNaN(Number(sizeProp))) radius = Number(sizeProp);
+    }
+
+    let strokeWidth = basicPreset.strokeWidth;
+    if (config.lineWidth && config.lineWidth.unit === 'p') {
+      strokeWidth = config.lineWidth.value;
+    } else if (colourMode === 'simple' && props['stroke-width'] !== undefined) {
+      strokeWidth = Number(props['stroke-width']) || 2;
+    }
+
+    return {
+      color: markerColor,
+      fillColor,
+      strokeColor,
+      outlineColor: '#ffffff',
+      radius,
+      strokeWidth,
+      outlineWidth: strokeWidth + 2,
+      opacity: calculatedCircleOpacity,
+      fillOpacity: calculatedFillOpacity,
+      strokeOpacity: calculatedStrokeOpacity
+    };
   };
 }
 
-function getSingleStyleColourEvaluator(style: GeoJsonStyleConfig): (feature: any) => string {
-  const mode = style.colourMode;
-  const colourConfig = style.colourConfig;
+/**
+ * Returns a function that calculates the styling (colours, opacities, sizes) for a single GeoJSON feature.
+ * It checks the feature's properties against each style rule in config.styles in order, using the first rule that matches.
+ * If no rules match, the feature is hidden. If no custom styles are configured, it uses the default theme.
+ *
+ * @param config The GeoJSON layer configuration containing the style rules
+ * @returns A function that takes a GeoJSON feature and returns its GeoJsonFeatureState
+ */
+export function getFeatureStateEvaluator(config: GeoJsonConfig): (feature: any, index: number) => GeoJsonFeatureState {
+  // Pre-build rule matching predicates to avoid re-parsing filter arrays on every feature
+  const styleRules = (config.styles || []).map(style => {
+    const evaluate = getSingleStyleEvaluator(config, style);
+    const filter = style.filter;
 
-  // Simple Mode
-  if (mode === 'simple') {
-    return feature => feature.cVal || '#888888';
-  }
-
-  // Basic Mode
-  if (mode === 'basic') {
-    const basic = colourConfig?.basic || '#ff0000';
-    return () => basic;
-  }
-
-  // Scale (Continuous) Mode
-  if (mode === 'scale') {
-    const min = colourConfig?.min ?? 0;
-    const max = colourConfig?.max ?? 100;
-    const range = max - min || 1;
-    const interpolator = getPaletteInterpolator(style);
-    const minColour = colourConfig?.minColour || '#ffffff';
-    const maxColour = colourConfig?.maxColour || '#ff0000';
-
-    return feature => {
-      let val = Number(feature.cVal);
-      if (style.colourProp && feature.properties) {
-        val = Number(feature.properties[style.colourProp]);
+    const matches = (props: Record<string, any>) => {
+      // If no filter property is configured, treat this as an unconditional catch-all rule
+      if (!filter?.prop || !filter.values?.length) {
+        return true;
       }
-
-      if (isNaN(val)) return '#888888';
-
-      const factor = Math.max(0, Math.min(1, (val - min) / range));
-
-      if (interpolator) {
-        return interpolator(factor);
-      }
-
-      if (val <= min) return minColour;
-      if (val >= max) return maxColour;
-      return interpolateColour(minColour, maxColour, factor);
+      const propValue = String(props[filter.prop] ?? '');
+      return filter.values.some(expectedValue => String(expectedValue) === propValue);
     };
-  }
 
-  return () => '#888888';
+    return { matches, evaluate };
+  });
+
+  const defaultEvaluator = getSingleStyleEvaluator(config, {
+    colourMode: 'basic',
+    colourConfig: { basicType: 'normal' },
+    opacity: 1,
+    isOpaque: false
+  });
+
+  const hiddenState: GeoJsonFeatureState = {
+    color: '#00267E',
+    fillColor: '#00267E',
+    strokeColor: '#00267E',
+    outlineColor: '#ffffff',
+    radius: 0,
+    strokeWidth: 0,
+    outlineWidth: 0,
+    opacity: 0,
+    fillOpacity: 0,
+    strokeOpacity: 0
+  };
+
+  return (feature: any, index: number) => {
+    const props = feature?.properties || {};
+
+    // Find the first rule whose filter matches the feature properties
+    const matchedRule = styleRules.find(rule => rule.matches(props));
+    if (matchedRule) {
+      return matchedRule.evaluate(feature, index);
+    }
+
+    // When style rules are defined but none matched, the feature is filtered out (hidden)
+    if (config.styles && config.styles.length > 0) {
+      return hiddenState;
+    }
+
+    // Default fallback when no custom styles are specified
+    return defaultEvaluator(feature, index);
+  };
 }
 
 /**
- * Transforms a list of pre-processed features into a list of rendered points.
- * This is the final step in the spike rendering pipeline.
+ * Updates MapLibre feature states on a source for all features in the GeoJSON dataset.
  */
-export function getProcessedFeatures(
-  config: GeoJsonConfig,
-  features: { coords: [number, number]; hVal: number; cVal: any }[]
-): { coords: [number, number]; height: number; colour: string }[] {
-  if (!features) return [];
+export function applyFeatureStates(
+  map: Map,
+  sourceId: string,
+  data: any,
+  config: GeoJsonConfig
+) {
+  if (!map || !map.getSource(sourceId) || !data?.features?.length) return;
 
-  // Hoist evaluators and configuration
-  const colourEvaluator = getColourEvaluator(config);
-  const heightEvaluator = getHeightEvaluator(config);
+  const evaluator = getFeatureStateEvaluator(config);
 
-  return features.map(feature => ({
-    coords: feature.coords,
-    height: heightEvaluator(feature),
-    colour: colourEvaluator(feature)
-  }));
-}
-
-export function getStrokeWidthExpression(config: GeoJsonConfig): any {
-  if (config.lineWidth) {
-    const { value, unit } = config.lineWidth;
-    if (unit === 'p') {
-      return value;
-    }
-    if (unit === 'k') {
-      return [
-        'interpolate',
-        ['exponential', 2],
-        ['zoom'],
-        0,
-        (value / 40075) * 512,
-        22,
-        (value / 40075) * 512 * Math.pow(2, 22)
-      ];
-    }
-  }
-
-  if (!config.styles || config.styles.length === 0) return 2;
-
-  if (config.styles.length === 1 && !config.styles[0].filter?.prop) {
-    return getSingleStyleStrokeWidthExpression(config.styles[0]);
-  }
-
-  const caseExpr: any[] = ['case'];
-  for (const style of config.styles) {
-    const expr = getSingleStyleStrokeWidthExpression(style);
-    if (style.filter?.prop && style.filter.values) {
-      const propExpr = ['to-string', ['coalesce', ['get', style.filter.prop], '']];
-      const matchExpr =
-        style.filter.values.length === 1
-          ? ['==', propExpr, String(style.filter.values[0])]
-          : ['in', propExpr, ['literal', style.filter.values.map(String)]];
-      caseExpr.push(matchExpr, expr);
-    } else {
-      caseExpr.push(expr);
-      return caseExpr;
-    }
-  }
-
-  caseExpr.push(2);
-  return caseExpr;
-}
-
-function getSingleStyleStrokeWidthExpression(style: GeoJsonStyleConfig): any {
-  if (style.colourMode === 'simple') {
-    return ['coalesce', ['get', 'stroke-width'], 2];
-  }
-  const preset = THEMES[style.colourConfig?.basicType || 'custom'];
-  if (preset) return preset.strokeWidth;
-  return 2;
+  data.features.forEach((feat: any, index: number) => {
+    const id = feat.id ?? index;
+    const state = evaluator(feat, index);
+    map.setFeatureState({ source: sourceId, id }, state);
+  });
 }
 
 /**
- * Calculates a MapLibre radius expression.
- * Supports absolute pixel values or real-world kilometre scaling that
- * adjusts dynamically with zoom level to maintain geographic size.
+ * Creates a colour evaluator function for spikes and custom layers.
  */
-export function getCircleRadiusExpression(config: GeoJsonConfig): any {
-  if (config.pointSize) {
-    const { value, unit } = config.pointSize;
-    if (unit === 'p') {
-      return value;
-    }
-    if (unit === 'k') {
-      return [
-        'interpolate',
-        ['exponential', 2],
-        ['zoom'],
-        0,
-        (value / 40075) * 512,
-        22,
-        (value / 40075) * 512 * Math.pow(2, 22)
-      ];
-    }
-  }
-
-  if (!config.styles || config.styles.length === 0) return THEMES.normal.radius;
-
-  // Simple case for one style
-  if (config.styles.length === 1 && !config.styles[0].filter?.prop) {
-    return getSingleStyleCircleRadiusExpression(config.styles[0]);
-  }
-
-  const caseExpr: any[] = ['case'];
-  for (const style of config.styles) {
-    const expr = getSingleStyleCircleRadiusExpression(style);
-    if (style.filter?.prop && style.filter.values) {
-      const propExpr = ['to-string', ['coalesce', ['get', style.filter.prop], '']];
-      const matchExpr =
-        style.filter.values.length === 1
-          ? ['==', propExpr, String(style.filter.values[0])]
-          : ['in', propExpr, ['literal', style.filter.values.map(String)]];
-      caseExpr.push(matchExpr, expr);
-    } else {
-      caseExpr.push(expr);
-      return caseExpr;
-    }
-  }
-
-  caseExpr.push(6);
-  return caseExpr;
-}
-
-function getSingleStyleCircleRadiusExpression(style: GeoJsonStyleConfig): any {
-  if (style.colourMode === 'simple') {
-    return [
-      'match',
-      ['get', 'marker-size'],
-      'small',
-      4,
-      'large',
-      9,
-      ['coalesce', ['to-number', ['get', 'marker-size']], 6]
-    ];
-  }
-  const preset = THEMES[style.colourConfig?.basicType || 'custom'];
-  if (preset) return preset.radius;
-  return THEMES.normal.radius;
-}
-
-export function getCircleOpacityExpression(config: GeoJsonConfig): any {
-  const baseOpacity = getOpacityExpression(config);
-
-  if (!config.styles || config.styles.length === 0) return ['*', baseOpacity, THEMES.normal.fillOpacity];
-
-  // If one style with no filter, keep it simple
-  if (config.styles.length === 1 && !config.styles[0].filter?.prop) {
-    return getSingleStyleCircleOpacityExpression(config.styles[0], baseOpacity);
-  }
-
-  const caseExpr: any[] = ['case'];
-  for (const style of config.styles) {
-    const expr = getSingleStyleCircleOpacityExpression(style, 1); // Pass 1 as base, we multiply by baseOpacity at the end
-    if (style.filter?.prop && style.filter.values) {
-      const propExpr = ['to-string', ['coalesce', ['get', style.filter.prop], '']];
-      const matchExpr =
-        style.filter.values.length === 1
-          ? ['==', propExpr, String(style.filter.values[0])]
-          : ['in', propExpr, ['literal', style.filter.values.map(String)]];
-      caseExpr.push(matchExpr, expr);
-    } else {
-      // Catch-all style (no filter)
-      caseExpr.push(expr);
-      break;
-    }
-  }
-
-  if (!config.styles || config.styles.length === 0) {
-    const factor = THEMES.normal.fillOpacity;
-    return baseOpacity === 1 ? factor : ['*', baseOpacity, factor];
-  }
-
-  if (config.styles.length === 1 && !config.styles[0].filter?.prop) {
-    return getSingleStyleCircleOpacityExpression(config.styles[0], baseOpacity);
-  }
-
-  // MapLibre 'case' expressions require an even number of elements: ['case', cond1, val1, ..., fallback]
-  // We need a fallback if the length is odd.
-  if (caseExpr.length % 2 !== 0) {
-    caseExpr.push(THEMES.normal.fillOpacity);
-  }
-
-  // If every style rule results in the same final opacity factor (e.g. they all use the 'normal' theme),
-  // the entire 'case' expression is redundant. We simplify it to a single multiplication
-  // to avoid the GPU overhead of evaluating redundant conditions for every feature.
-  const allSame = caseExpr.slice(1).every((val, i) => i % 2 === 0 || val === THEMES.normal.fillOpacity);
-  if (allSame) return ['*', baseOpacity, THEMES.normal.fillOpacity];
-
-  return ['*', baseOpacity, caseExpr];
-}
-
-function getSingleStyleCircleOpacityExpression(style: GeoJsonStyleConfig, baseOpacity: any): any {
-  if (style.colourMode === 'simple') {
-    const simpleFactor = [
-      'coalesce',
-      ['get', 'opacity'],
-      ['get', 'fill-opacity'],
-      ['get', 'stroke-opacity'],
-      THEMES.normal.fillOpacity
-    ];
-    const factor = style.isOpaque ? 1.0 : simpleFactor;
-    return baseOpacity === 1 ? factor : ['*', baseOpacity, factor];
-  }
-  const preset = THEMES[style.colourConfig?.basicType || 'custom'];
-  const themeFactor = preset?.fillOpacity ?? THEMES.normal.fillOpacity;
-  const factor = style.isOpaque ? 1.0 : themeFactor;
-  return baseOpacity === 1 ? factor : ['*', baseOpacity, factor];
-}
-
-export function getFillOpacityExpression(config: GeoJsonConfig): any {
-  const baseOpacity = getOpacityExpression(config);
-
-  if (!config.styles || config.styles.length === 0) {
-    const factor = THEMES.normal.fillOpacity;
-    return baseOpacity === 1 ? factor : ['*', baseOpacity, factor];
-  }
-
-  if (config.styles.length === 1 && !config.styles[0].filter?.prop) {
-    return getSingleStyleFillOpacityExpression(config.styles[0], baseOpacity);
-  }
-
-  const caseExpr: any[] = ['case'];
-  for (const style of config.styles) {
-    const expr = getSingleStyleFillOpacityExpression(style, 1);
-    if (style.filter?.prop && style.filter.values) {
-      const propExpr = ['to-string', ['coalesce', ['get', style.filter.prop], '']];
-      const matchExpr =
-        style.filter.values.length === 1
-          ? ['==', propExpr, String(style.filter.values[0])]
-          : ['in', propExpr, ['literal', style.filter.values.map(String)]];
-      caseExpr.push(matchExpr, expr);
-    } else {
-      caseExpr.push(expr);
-      break;
-    }
-  }
-
-  if (caseExpr.length === 1) {
-    return ['*', baseOpacity, THEMES.normal.fillOpacity];
-  }
-
-  // MapLibre 'case' expressions require an even number of elements: ['case', cond1, val1, ..., fallback]
-  // Since 'case' is 1 and each filter is 2 elements, we need a fallback if the length is odd.
-  if (caseExpr.length % 2 !== 0) {
-    caseExpr.push(THEMES.normal.fillOpacity);
-  }
-
-  // If every style rule results in the same final opacity factor (e.g. they all use the 'normal' theme),
-  // the entire 'case' expression is redundant. We simplify it to a single multiplication
-  // to avoid the GPU overhead of evaluating redundant conditions for every feature.
-  const allSame = caseExpr.slice(1).every((val, i) => i % 2 === 0 || val === THEMES.normal.fillOpacity);
-  if (allSame) return ['*', baseOpacity, THEMES.normal.fillOpacity];
-
-  return ['*', baseOpacity, caseExpr];
-}
-
-function getSingleStyleFillOpacityExpression(style: GeoJsonStyleConfig, baseOpacity: any): any {
-  if (style.colourMode === 'simple') {
-    const simpleFactor = ['coalesce', ['get', 'fill-opacity'], 0.5];
-    const factor = style.isOpaque ? 1.0 : simpleFactor;
-    return baseOpacity === 1 ? factor : ['*', baseOpacity, factor];
-  }
-  const preset = THEMES[style.colourConfig?.basicType || 'custom'];
-  const themeFactor = preset?.fillOpacity ?? THEMES.normal.fillOpacity;
-  const factor = style.isOpaque ? 1.0 : themeFactor;
-  return baseOpacity === 1 ? factor : ['*', baseOpacity, factor];
-}
-
-export function getStrokeOpacityExpression(config: GeoJsonConfig): any {
-  const baseOpacity = getOpacityExpression(config);
-
-  if (!config.styles || config.styles.length === 0) {
-    return baseOpacity;
-  }
-
-  if (config.styles.length === 1 && !config.styles[0].filter?.prop) {
-    return getSingleStyleStrokeOpacityExpression(config.styles[0], baseOpacity);
-  }
-
-  const caseExpr: any[] = ['case'];
-  for (const style of config.styles) {
-    const expr = getSingleStyleStrokeOpacityExpression(style, 1);
-    if (style.filter?.prop && style.filter.values) {
-      const propExpr = ['to-string', ['coalesce', ['get', style.filter.prop], '']];
-      const matchExpr =
-        style.filter.values.length === 1
-          ? ['==', propExpr, String(style.filter.values[0])]
-          : ['in', propExpr, ['literal', style.filter.values.map(String)]];
-      caseExpr.push(matchExpr, expr);
-    } else {
-      caseExpr.push(expr);
-      break;
-    }
-  }
-
-  if (caseExpr.length === 1) {
-    return baseOpacity;
-  }
-
-  // MapLibre 'case' expressions require an even number of elements: ['case', cond1, val1, ..., fallback]
-  // Since 'case' is 1 and each filter is 2 elements, we need a fallback if the length is odd.
-  if (caseExpr.length % 2 !== 0) {
-    caseExpr.push(1);
-  }
-
-  // If every style rule results in the same final stroke opacity factor (1.0),
-  // the entire 'case' expression is redundant. We return the base opacity directly
-  // to avoid the GPU overhead of evaluating redundant conditions for every feature.
-  const allSame = caseExpr.slice(1).every((val, i) => i % 2 === 0 || val === 1);
-  if (allSame) return baseOpacity;
-
-  return ['*', baseOpacity, caseExpr];
-}
-
-function getSingleStyleStrokeOpacityExpression(style: GeoJsonStyleConfig, baseOpacity: any): any {
-  if (style.colourMode === 'simple') {
-    return ['*', baseOpacity, ['coalesce', ['get', 'stroke-opacity'], 1.0]];
-  }
-  const preset = THEMES[style.colourConfig?.basicType || 'custom'];
-  const factor = preset?.strokeOpacity ?? 1.0;
-  return baseOpacity === 1 ? factor : ['*', baseOpacity, factor];
-}
-
-/**
- * Generates a MapLibre expression for opacity.
- * Primarily handles hiding features that are excluded by the builder's filters.
- */
-export function getOpacityExpression(config: GeoJsonConfig): any {
-  if (!config.styles || config.styles.length === 0) return 1;
-
-  // If there's only one style and it has no filter, it's just the opacity
-  if (config.styles.length === 1 && !config.styles[0].filter?.prop) {
-    return config.styles[0].opacity ?? 1;
-  }
-
-  const caseExpr: any[] = ['case'];
-
-  for (const style of config.styles) {
-    const opacity = style.opacity ?? 1;
-    if (style.filter?.prop && style.filter.values) {
-      const propExpr = ['to-string', ['coalesce', ['get', style.filter.prop], '']];
-      const matchExpr =
-        style.filter.values.length === 1
-          ? ['==', propExpr, String(style.filter.values[0])]
-          : ['in', propExpr, ['literal', style.filter.values.map(String)]];
-      caseExpr.push(matchExpr, opacity);
-    } else {
-      // Catch-all
-      caseExpr.push(opacity);
-      return caseExpr;
-    }
-  }
-
-  // Final fallback (hidden if no rules match)
-  caseExpr.push(0);
-  return caseExpr;
+export function getColourEvaluator(config: GeoJsonConfig): (feature: any) => string {
+  const evaluator = getFeatureStateEvaluator(config);
+  return feature => evaluator(feature, 0).color;
 }
 
 const MIN_HEIGHT_JANK_FACTOR = 3000;
 
 /**
- * Creates a high-performance height evaluator function.
- * This hoists configuration lookups out of the evaluation logic.
+ * Creates a high-performance height evaluator function for spikes.
  */
 export function getHeightEvaluator(config: GeoJsonConfig): (feature: { hVal: number }) => number {
   const spikeConfig = config.spike;
@@ -593,5 +300,3 @@ export function getHeightEvaluator(config: GeoJsonConfig): (feature: { hVal: num
     return Math.max(MIN_HEIGHT_JANK_FACTOR, factor * scalar);
   };
 }
-
-// getLabelAnchor removed, now imported from layerUtils
