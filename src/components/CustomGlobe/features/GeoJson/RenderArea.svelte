@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getContext, untrack } from 'svelte';
-  import { Popup, type Map, type GeoJSONSource } from 'maplibre-gl';
+  import type { Map, GeoJSONSource } from 'maplibre-gl';
   import type { GeoJsonConfig } from '../../../../lib/marker';
   import {
     getColourExpression,
@@ -11,7 +11,6 @@
   import {
     addLayerWithZIndex,
     removeLayerWithZIndex,
-    setLayerZIndex,
     Z_INDEX_GEOJSON,
     SUB_LAYER_OUTLINE_OFFSET
   } from '../layerUtils';
@@ -33,24 +32,43 @@
   const layerId = $derived(`${sourceId}-fill`);
   const outlineLayerId = $derived(`${sourceId}-outline`);
 
+  /**
+   * Applies paint properties for fill and outline styling from the current config.
+   */
+  function updateStyles() {
+    const map = mapRoot.map;
+    const lid = layerId;
+    const olid = outlineLayerId;
+
+    if (map && map.getLayer(lid)) {
+      map.setPaintProperty(lid, 'fill-color', getColourExpression(config, 'fill'));
+      map.setPaintProperty(lid, 'fill-opacity', getFillOpacityExpression(config));
+    }
+    if (map && map.getLayer(olid)) {
+      map.setPaintProperty(olid, 'line-color', getColourExpression(config, 'stroke'));
+      map.setPaintProperty(olid, 'line-width', getStrokeWidthExpression(config));
+      map.setPaintProperty(olid, 'line-opacity', getStrokeOpacityExpression(config));
+    }
+  }
+
+  // Layer lifecycle: add/remove layer only on mount, unmount, and when map, sourceId, or zIndex changes
   $effect(() => {
     const map = mapRoot.map;
     const sid = sourceId;
     const lid = layerId;
     const olid = outlineLayerId;
+    const targetZ = zIndex;
 
-    if (!map || !data) return;
+    if (!map) return;
 
     untrack(() => {
       // Initialize Source
       if (!map.getSource(sid)) {
         map.addSource(sid, {
           type: 'geojson',
-          data: data
+          data: data || { type: 'FeatureCollection', features: [] }
         });
       }
-
-      const targetZ = zIndex ?? Z_INDEX_GEOJSON;
 
       // Initialize Layers
       if (map.getSource(sid)) {
@@ -63,9 +81,6 @@
               type: 'fill',
               source: sid,
               paint: {
-                'fill-color': getColourExpression(config, 'fill'),
-                'fill-opacity': getFillOpacityExpression(config),
-
                 'fill-color-transition': { duration: 300 },
                 'fill-opacity-transition': { duration: 300 }
               }
@@ -82,10 +97,6 @@
               type: 'line',
               source: sid,
               paint: {
-                'line-color': getColourExpression(config, 'stroke'),
-
-                'line-width': getStrokeWidthExpression(config),
-                'line-opacity': getStrokeOpacityExpression(config),
                 'line-width-transition': { duration: 300 },
                 'line-color-transition': { duration: 300 },
                 'line-opacity-transition': { duration: 300 }
@@ -94,6 +105,8 @@
             targetZ
           );
         }
+
+        updateStyles();
       }
     });
 
@@ -115,71 +128,7 @@
 
   // Update Styles
   $effect(() => {
-    const map = mapRoot.map;
-    const lid = layerId;
-    const olid = outlineLayerId;
-
-    if (map && map.getLayer(lid)) {
-      map.setPaintProperty(lid, 'fill-color', getColourExpression(config, 'fill'));
-      map.setPaintProperty(lid, 'fill-opacity', getFillOpacityExpression(config));
-    }
-    if (map && map.getLayer(olid)) {
-      map.setPaintProperty(olid, 'line-color', getColourExpression(config, 'stroke'));
-
-      map.setPaintProperty(olid, 'line-width', getStrokeWidthExpression(config));
-      map.setPaintProperty(olid, 'line-opacity', getStrokeOpacityExpression(config));
-    }
-  });
-
-  // Update Z-Index when changed
-  $effect(() => {
-    const map = mapRoot.map;
-    const targetZ = zIndex ?? config.zIndex;
-    const lid = layerId;
-    const olid = outlineLayerId;
-    if (!map || targetZ === undefined) return;
-
-    if (map.getLayer(lid)) setLayerZIndex(map, lid, targetZ - SUB_LAYER_OUTLINE_OFFSET);
-    if (map.getLayer(olid)) setLayerZIndex(map, olid, targetZ);
-  });
-
-  // Popups
-  $effect(() => {
-    const map = mapRoot.map;
-    const lid = layerId;
-    if (!map || !map.getLayer(lid)) return;
-
-    const popup = new Popup({
-      closeButton: false,
-      closeOnClick: true
-    });
-
-    const handleEvent = (e: any) => {
-      const feature = e.features?.[0];
-      if (!feature) return;
-
-      const title = feature.properties?.title || feature.properties?.name;
-      const description = feature.properties?.description;
-
-      if (title || description) {
-        let content = '';
-        if (title) content += `<strong>${title}</strong><br>`;
-        if (description) content += description;
-
-        popup.setLngLat(e.lngLat).setHTML(content).addTo(map);
-      }
-    };
-
-    map.on('click', lid, handleEvent);
-    map.on('mouseenter', lid, () => (map.getCanvas().style.cursor = 'pointer'));
-    map.on('mouseleave', lid, () => {
-      map.getCanvas().style.cursor = '';
-      popup.remove();
-    });
-
-    return () => {
-      map.off('click', lid, handleEvent);
-      popup.remove();
-    };
+    config;
+    updateStyles();
   });
 </script>
