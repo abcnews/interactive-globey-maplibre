@@ -255,6 +255,7 @@ export const markerSchema = object({
     .key('is')
     .default([]),
   labels: array(labelSchema).asBase36().key('labels').default([]),
+  labelsZIndex: decimal(2).key('lz').optional(),
   fitGlobe: boolean().key('fit').default(false),
   constrainView: boolean().key('cv').default(false),
   attribution: base36String().key('attr').default(''),

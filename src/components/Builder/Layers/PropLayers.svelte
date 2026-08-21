@@ -1,14 +1,31 @@
 <script lang="ts">
   import type { Map as MapLibreMap } from 'maplibre-gl';
-  import type { DecodedObject, GeoJsonConfig, ImageSourceConfig } from '../../../lib/marker';
-  import { Z_INDEX_GEOJSON, Z_INDEX_IMAGE_LAYERS } from '../../CustomGlobe/features/layerUtils';
+  import type { DecodedObject, GeoJsonConfig, ImageSourceConfig, Label } from '../../../lib/marker';
+  import {
+    Z_INDEX_GEOJSON,
+    Z_INDEX_IMAGE_LAYERS,
+    Z_INDEX_CUSTOM_LABELS
+  } from '../../CustomGlobe/features/layerUtils';
   import { safeFitBounds } from '../utils';
   import PropList from '../PropList.svelte';
   import GeoJsonConfigModal from '../GeoJSON/GeoJsonConfigModal.svelte';
   import ImageSourceConfigModal from '../ImageSource/ImageSourceConfigModal.svelte';
-  import { Pencil, Trash, Plus, Image as ImageIcon, Map as MapIcon } from 'svelte-bootstrap-icons';
+  import {
+    Pencil,
+    Trash,
+    Plus,
+    Image as ImageIcon,
+    Map as MapIcon,
+    ChatSquareText
+  } from 'svelte-bootstrap-icons';
 
-  export type LayerKind = 'geojson' | 'image';
+  export type LayerKind = 'geojson' | 'image' | 'labels';
+
+  const LAYER_ICONS: Record<LayerKind, typeof MapIcon> = {
+    geojson: MapIcon,
+    image: ImageIcon,
+    labels: ChatSquareText
+  };
 
   export interface LayerItem {
     id: string;
@@ -16,7 +33,9 @@
     name: string;
     description: string;
     zIndex: number;
-    data: GeoJsonConfig | ImageSourceConfig;
+    data?: GeoJsonConfig | ImageSourceConfig | Label[];
+    editable?: boolean;
+    deletable?: boolean;
   }
 
   interface Props {
@@ -45,7 +64,9 @@
       name: item.type ? `${item.type.charAt(0).toUpperCase() + item.type.slice(1)}` : 'GeoJSON',
       description: item.cmid ? `CMID: ${item.cmid}` : 'No CMID',
       zIndex: item.zIndex ?? Z_INDEX_GEOJSON + idx * 0.1,
-      data: item
+      data: item,
+      editable: true,
+      deletable: true
     }));
 
     const img: LayerItem[] = (options.imageSources || []).map((item, idx) => ({
@@ -54,10 +75,28 @@
       name: item.url ? item.url.split('?')[0].split('/').pop() || item.url : 'Image',
       description: `Opacity: ${Math.round((item.opacity ?? 1) * 100)}%`,
       zIndex: item.zIndex ?? Z_INDEX_IMAGE_LAYERS + idx * 0.1,
-      data: item
+      data: item,
+      editable: true,
+      deletable: true
     }));
 
-    return [...geojson, ...img].sort((a, b) => b.zIndex - a.zIndex);
+    const labelItems: LayerItem[] =
+      options.labels && options.labels.length > 0
+        ? [
+            {
+              id: 'custom-labels',
+              kind: 'labels',
+              name: 'Custom Labels',
+              description: `${options.labels.length} label${options.labels.length === 1 ? '' : 's'}`,
+              zIndex: options.labelsZIndex ?? Z_INDEX_CUSTOM_LABELS,
+              data: options.labels,
+              editable: false,
+              deletable: false
+            }
+          ]
+        : [];
+
+    return [...geojson, ...img, ...labelItems].sort((a, b) => b.zIndex - a.zIndex);
   });
 
   function getOptionKey(kind: LayerKind): 'geoJson' | 'imageSources' {
@@ -68,16 +107,28 @@
     const total = newItems.length;
     const baseZ = Z_INDEX_IMAGE_LAYERS;
 
-    const reindexed = newItems.map((item, idx) => ({
-      ...item.data,
-      zIndex: baseZ + (total - 1 - idx) * 10
-    }));
+    newItems.forEach((item, idx) => {
+      const assignedZ = baseZ + (total - 1 - idx) * 10;
+      if (item.kind === 'geojson' && item.data) {
+        (item.data as GeoJsonConfig).zIndex = assignedZ;
+      } else if (item.kind === 'image' && item.data) {
+        (item.data as ImageSourceConfig).zIndex = assignedZ;
+      } else if (item.kind === 'labels') {
+        options.labelsZIndex = assignedZ;
+      }
+    });
 
-    options.geoJson = reindexed.filter((_, i) => newItems[i].kind === 'geojson') as GeoJsonConfig[];
-    options.imageSources = reindexed.filter((_, i) => newItems[i].kind === 'image') as ImageSourceConfig[];
+    options.geoJson = newItems
+      .filter(item => item.kind === 'geojson')
+      .map(item => item.data as GeoJsonConfig);
+
+    options.imageSources = newItems
+      .filter(item => item.kind === 'image')
+      .map(item => item.data as ImageSourceConfig);
   }
 
   function removeLayer(item: LayerItem) {
+    if (!item.deletable) return;
     const key = getOptionKey(item.kind);
     options[key] = ((options[key] as any[]) || []).filter(entry => entry !== item.data);
   }
@@ -93,6 +144,7 @@
   }
 
   function editLayer(item: LayerItem) {
+    if (!item.editable) return;
     editingItem = item;
     isAdding = null;
     newLayerDraft = null;
@@ -144,11 +196,10 @@
   {:else}
     <PropList items={layers} onchange={handleReorder}>
       {#snippet name(item: LayerItem)}
+        {@const Icon = LAYER_ICONS[item.kind]}
         <span class="layer-name">
-          {#if item.kind === 'geojson'}
-            <MapIcon class="layer-icon" />
-          {:else}
-            <ImageIcon class="layer-icon" />
+          {#if Icon}
+            <Icon class="layer-icon" />
           {/if}
           <strong>{item.name}</strong>
         </span>
@@ -157,17 +208,21 @@
         <span class="layer-desc">{item.description}</span>
       {/snippet}
       {#snippet actions(item: LayerItem)}
-        <button
-          class="btn-icon"
-          aria-label="Edit"
-          title="Edit"
-          onclick={() => editLayer(item)}
-        >
-          <Pencil />
-        </button>
-        <button class="btn-icon" aria-label="Delete" title="Delete" onclick={() => removeLayer(item)}>
-          <Trash />
-        </button>
+        {#if item.editable}
+          <button
+            class="btn-icon"
+            aria-label="Edit"
+            title="Edit"
+            onclick={() => editLayer(item)}
+          >
+            <Pencil />
+          </button>
+        {/if}
+        {#if item.deletable}
+          <button class="btn-icon" aria-label="Delete" title="Delete" onclick={() => removeLayer(item)}>
+            <Trash />
+          </button>
+        {/if}
       {/snippet}
     </PropList>
   {/if}

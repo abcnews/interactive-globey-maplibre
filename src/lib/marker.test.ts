@@ -194,6 +194,7 @@ describe('marker codecs', () => {
             number: 0
           }
         ],
+        labelsZIndex: 600,
         geoJson: [
           {
             cmid: 12345678,
@@ -234,6 +235,7 @@ describe('marker codecs', () => {
       assert.strictEqual(decoded.z, 6.14);
       assert.strictEqual(decoded.labels?.length, 1);
       assert.strictEqual(decoded.labels![0].name, 'Melbourne');
+      assert.strictEqual(decoded.labelsZIndex, 600);
       assert.strictEqual(decoded.geoJson![0].cmid, 12345678);
       assert.strictEqual(decoded.geoJson![0].zIndex, 400);
       assert.deepStrictEqual(

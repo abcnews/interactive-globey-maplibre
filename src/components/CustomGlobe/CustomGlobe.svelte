@@ -97,7 +97,7 @@
 
       <MapVectorHandler base={options.base} labels={options.mapLabels} {isSatellite} />
 
-      <MapCustomLabelHandler labels={options.labels} {isDark} />
+      <MapCustomLabelHandler labels={options.labels} zIndex={options.labelsZIndex} {isDark} />
 
       {#if options.base === 'satellite'}
         <MapRasterHandler

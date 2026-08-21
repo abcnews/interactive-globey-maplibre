@@ -1,57 +1,125 @@
 <script lang="ts">
-  import { Marker, type Map } from 'maplibre-gl';
-  import { getContext, mount, untrack } from 'svelte';
+  import type { Map as MapLibreMap, GeoJSONSource } from 'maplibre-gl';
+  import { getContext, untrack } from 'svelte';
   import type { Label } from '../../../lib/marker';
-  import CustomLabel from './CustomLabel.svelte';
+  import {
+    addLayerWithZIndex,
+    setLayerZIndex,
+    removeLayerWithZIndex,
+    Z_INDEX_CUSTOM_LABELS
+  } from './layerUtils';
+  import { getCustomLabelLayers } from '../mapStyle/customLabelStyle';
 
-  const mapRoot = getContext<{ map: Map }>('mapInstance');
+  const SOURCE_ID = 'custom-labels';
 
-  let { labels = [], isDark = false }: { labels?: Label[]; isDark?: boolean } = $props();
-  let markers: Marker[] = [];
+  interface Props {
+    /** Array of custom user labels to render */
+    labels?: Label[];
+    /** Virtual Z-Index layer order for stacking */
+    zIndex?: number;
+    /** Whether the current map style is in dark/satellite mode */
+    isDark?: boolean;
+  }
+
+  let { labels = [], zIndex, isDark = false }: Props = $props();
+
+  const mapRoot = getContext<{ map: MapLibreMap | null }>('mapInstance');
 
   const labelsJson = $derived(JSON.stringify(labels));
+  const activeZIndex = $derived(zIndex ?? Z_INDEX_CUSTOM_LABELS);
 
+  // 1. Initialise Layer & Source once, and clean up only on component unmount
   $effect(() => {
-    labelsJson; // Depend on the stringified labels for deep equality check
+    if (!mapRoot?.map || typeof window === 'undefined') return;
+    const map = mapRoot.map;
+    const layers = getCustomLabelLayers(isDark, SOURCE_ID);
+
+    untrack(() => {
+      if (!map.getSource(SOURCE_ID)) {
+        map.addSource(SOURCE_ID, {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] }
+        });
+      }
+
+      layers.forEach(layer => {
+        if (!map.getLayer(layer.id)) {
+          addLayerWithZIndex(map, layer, activeZIndex);
+        }
+      });
+    });
+
+    return () => {
+      layers.forEach(layer => {
+        removeLayerWithZIndex(map, layer.id);
+      });
+      if (map.getSource(SOURCE_ID)) {
+        map.removeSource(SOURCE_ID);
+      }
+    };
+  });
+
+  // 2. Purely update GeoJSON data when labels change (no teardown function)
+  $effect(() => {
+    labelsJson;
 
     if (!mapRoot?.map || typeof window === 'undefined') return;
     const map = mapRoot.map;
 
-    // Use a local array to track markers created in this effect run
-    // cleanup func will remove them.
-    const currentMarkers: Marker[] = [];
+    const source = map.getSource(SOURCE_ID) as GeoJSONSource | undefined;
+    if (!source) return;
 
-    // Ensure DOM is ready and labels array is populated
-    labels.forEach(label => {
-      if (!label.coords) return;
+    const geoJsonData: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+      type: 'FeatureCollection',
+      features: (labels || [])
+        .filter(label => Boolean(label?.coords && label?.name))
+        .map((label, index) => ({
+          type: 'Feature',
+          id: index,
+          properties: {
+            name: label.name,
+            style: label.style
+          },
+          geometry: {
+            type: 'Point',
+            coordinates: label.coords
+          }
+        }))
+    };
 
-      const el = document.createElement('div');
-      el.className = 'custom-label-container';
+    source.setData(geoJsonData);
+  });
 
-      try {
-        mount(CustomLabel, {
-          target: el,
-          props: { name: label.name, style: label.style, isDark }
-        });
+  // 3. Update paint properties seamlessly when isDark changes
+  $effect(() => {
+    isDark;
 
-        const marker = new Marker({
-          element: el,
-          anchor: 'center',
-          opacityWhenCovered: 0
-        })
-          .setLngLat(label.coords)
-          .addTo(map);
+    if (!mapRoot?.map || typeof window === 'undefined') return;
+    const map = mapRoot.map;
+    const layers = getCustomLabelLayers(isDark, SOURCE_ID);
 
-        currentMarkers.push(marker);
-      } catch (e) {
-        console.error('Failed to mount label marker', e);
+    layers.forEach(layer => {
+      if (map.getLayer(layer.id) && layer.paint) {
+        if (layer.paint['text-color']) {
+          map.setPaintProperty(layer.id, 'text-color', layer.paint['text-color']);
+        }
+        if (layer.paint['text-halo-color']) {
+          map.setPaintProperty(layer.id, 'text-halo-color', layer.paint['text-halo-color']);
+        }
       }
     });
+  });
 
-    markers = currentMarkers;
+  // 4. Dynamically restack layers if activeZIndex changes
+  $effect(() => {
+    if (!mapRoot?.map || typeof window === 'undefined') return;
+    const map = mapRoot.map;
+    const layers = getCustomLabelLayers(isDark, SOURCE_ID);
 
-    return () => {
-      currentMarkers.forEach(m => m.remove());
-    };
+    layers.forEach(layer => {
+      if (map.getLayer(layer.id)) {
+        setLayerZIndex(map, layer.id, activeZIndex);
+      }
+    });
   });
 </script>
