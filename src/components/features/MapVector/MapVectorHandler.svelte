@@ -19,7 +19,7 @@
   import {
     addLayerWithZIndex,
     removeLayerWithZIndex,
-    setLayerZIndex,
+    setLayersZIndex,
     Z_INDEX_BASE_VECTOR,
     Z_INDEX_BASE_LABELS
   } from '../layers/layerUtils.ts';
@@ -28,6 +28,8 @@
 
   let {
     base,
+    hideOsm = false,
+    streetMapZIndex = Z_INDEX_BASE_VECTOR,
     labels = {
       countriesMajor: true,
       countriesMedium: true,
@@ -44,13 +46,15 @@
     isSatellite = false
   }: {
     base?: string;
+    hideOsm?: boolean;
+    streetMapZIndex?: number;
     labels?: MapLabelsConfig;
     zIndex?: number;
     isSatellite?: boolean;
   } = $props();
 
   const hasLabels = $derived(hasMapLabels(labels));
-  const showBase = $derived(base === 'street' || !base);
+  const showBase = $derived(!hideOsm && (base === 'street' || !base));
   const needsSource = $derived(showBase || hasLabels);
 
   // Effect for Source and Layer lifecycle
@@ -81,18 +85,27 @@
         map.setPaintProperty('background', 'background-color', defaultBackground);
       }
 
-      allLayers.forEach(layer => {
-        const isBase = baseLayers.includes(layer);
-        const layerZ = isBase ? Z_INDEX_BASE_VECTOR : untrack(() => zIndex ?? Z_INDEX_BASE_LABELS);
+      if (s_showBase) {
+        baseLayers.forEach((layer, idx) => {
+          const layerZ = untrack(() => (streetMapZIndex ?? Z_INDEX_BASE_VECTOR) + idx * 0.0001);
+          if (!map.getLayer(layer.id)) {
+            addLayerWithZIndex(map, layer as any, layerZ);
+          }
+        });
+      }
 
-        if (!map.getLayer(layer.id)) {
-          addLayerWithZIndex(map, layer as any, layerZ);
-        } else if (labelLayers.includes(layer) && layer.paint) {
-          Object.keys(layer.paint).forEach(prop => {
-            map.setPaintProperty(layer.id, prop as any, (layer.paint as any)[prop]);
-          });
-        }
-      });
+      if (s_hasLabels) {
+        labelLayers.forEach((layer, idx) => {
+          const layerZ = untrack(() => (zIndex ?? Z_INDEX_BASE_LABELS) + idx * 0.0001);
+          if (!map.getLayer(layer.id)) {
+            addLayerWithZIndex(map, layer as any, layerZ);
+          } else if (layer.paint) {
+            Object.keys(layer.paint).forEach(prop => {
+              map.setPaintProperty(layer.id, prop as any, (layer.paint as any)[prop]);
+            });
+          }
+        });
+      }
     };
 
     if (map.isStyleLoaded()) {
@@ -109,6 +122,20 @@
     };
   });
 
+  // Effect for dynamic z-index restacking on base vector layers
+  $effect(() => {
+    if (!mapRoot.map) return;
+    const map = mapRoot.map;
+    const effectiveZ = streetMapZIndex ?? Z_INDEX_BASE_VECTOR;
+    const baseLayers = getStreetBaseLayers();
+
+    setLayersZIndex(
+      map,
+      baseLayers.map(l => l.id),
+      effectiveZ
+    );
+  });
+
   // Effect for dynamic z-index restacking on label layers
   $effect(() => {
     if (!mapRoot.map) return;
@@ -116,11 +143,11 @@
     const effectiveZ = zIndex ?? Z_INDEX_BASE_LABELS;
     const labelLayers = getLabelLayers(isSatellite);
 
-    labelLayers.forEach(layer => {
-      if (map.getLayer(layer.id)) {
-        setLayerZIndex(map, layer.id, effectiveZ);
-      }
-    });
+    setLayersZIndex(
+      map,
+      labelLayers.map(l => l.id),
+      effectiveZ
+    );
   });
 
   // Effect for dynamic visibility

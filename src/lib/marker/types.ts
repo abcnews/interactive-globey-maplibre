@@ -10,6 +10,7 @@ import type {
   iconItemSchema,
   imageSourceItemSchema,
   mapLabelsSchema,
+  rasterItemSchema,
   markerSchema
 } from './schema.ts';
 
@@ -25,6 +26,7 @@ export type GeoJsonConfig = Infer<typeof geoJsonItemSchema>;
 export type IconConfig = Infer<typeof iconItemSchema>;
 export type ImageSourceConfig = Infer<typeof imageSourceItemSchema>;
 export type MapLabelsConfig = Infer<typeof mapLabelsSchema>;
+export type RasterLayerConfig = Infer<typeof rasterItemSchema>;
 
 export type Marker = Infer<typeof markerSchema>;
 export type DecodedObject = Partial<Marker>;

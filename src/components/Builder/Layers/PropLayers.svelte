@@ -77,6 +77,13 @@
       const assignedZ = baseZ + (total - 1 - idx) * 10;
       item.feature.setZIndex(options, item, assignedZ);
     });
+    options = {
+      ...options,
+      rasterLayers: options.rasterLayers ? [...options.rasterLayers] : [],
+      imageSources: options.imageSources ? [...options.imageSources] : [],
+      geoJson: options.geoJson ? [...options.geoJson] : [],
+      icons: options.icons ? [...options.icons] : []
+    };
   }
 
   function addLayer(feature: LayerFeatureDefinition<any>) {

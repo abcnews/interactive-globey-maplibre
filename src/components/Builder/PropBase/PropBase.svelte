@@ -4,7 +4,6 @@
   import type * as maplibregl from 'maplibre-gl';
   import { Modal } from '@abcnews/components-builder';
   import { Pencil, X } from 'svelte-bootstrap-icons';
-  import { isOsmBase } from '../../CustomGlobe/mapStyle/utils';
 
   let { options = $bindable(), map } = $props<{ options: DecodedObject; map: maplibregl.Map }>();
   let isOpen = $state(false);
@@ -25,16 +24,6 @@
       mapLabels: next
     };
   }
-
-  const baseLabels: Record<string, string> = {
-    street: 'Street Map',
-    satellite: 'Satellite'
-  };
-
-  const satelliteLabels: Record<string, string> = {
-    blue: 'Blue Marble',
-    black: 'Black Marble'
-  };
 </script>
 
 <fieldset>
@@ -46,11 +35,7 @@
   >
   <div class="prop-base-summary">
     <span class="value">
-      <strong>{baseLabels[options.base || 'street']}</strong>
-      {#if options.base === 'satellite'}
-        {satelliteLabels[options.satelliteVariant || 'blue']}
-      {/if}
-      <small>({options.projection === 'mercator' ? '2D' : 'Globe'})</small>
+      <strong>{options.projection === 'mercator' ? 'Flat (Mercator)' : 'Globe'}</strong>
     </span>
   </div>
 </fieldset>
@@ -60,13 +45,6 @@
     <div class="prop-base">
       <div class="prop-base__layer">
         <div>
-          <fieldset>
-            <legend>Base Layer</legend>
-            <select value={options.base || 'street'} onchange={e => update('base', e.currentTarget.value)}>
-              <option value="street">Street Map</option>
-              <option value="satellite">Satellite</option>
-            </select>
-          </fieldset>
           <fieldset>
             <legend>Projection</legend>
             <div class="radio-group">
@@ -92,35 +70,6 @@
               </label>
             </div>
           </fieldset>
-        </div>
-        {#if options.base === 'satellite'}
-          <fieldset class="sub-options">
-            <legend>Satellite layer</legend>
-            <div class="radio-group">
-              <label>
-                <input
-                  type="radio"
-                  name="satellite-variant"
-                  value="blue"
-                  checked={options.satelliteVariant === 'blue' || !options.satelliteVariant}
-                  onchange={() => update('satelliteVariant', 'blue')}
-                />
-                Blue marble
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="satellite-variant"
-                  value="black"
-                  checked={options.satelliteVariant === 'black'}
-                  onchange={() => update('satelliteVariant', 'black')}
-                />
-                Black marble
-              </label>
-            </div>
-          </fieldset>
-        {/if}
-        {#if isOsmBase(options.base)}
           <fieldset class="sub-options">
             <legend>Boundaries</legend>
             <div class="checkbox-group">
@@ -142,52 +91,42 @@
               </label>
             </div>
           </fieldset>
-        {/if}
-      </div>
-      <div>
-        <fieldset>
-          <legend>Attribution</legend>
+        </div>
+        <div>
+          <fieldset>
+            <legend>Attribution</legend>
 
-          <div class="builder__inline">
-            <label class="builder__inline" style="flex:1"
-              >Text
-              <input
-                id="text_attribution"
-                type="text"
-                placeholder="e.g. Map data © ..."
-                value={options.attribution || ''}
-                oninput={e => update('attribution', e.currentTarget.value)}
-                style="flex:1;width:auto;"
-              />
-            </label>
+            <div class="builder__inline">
+              <label class="builder__inline" style="flex:1"
+                >Text
+                <input
+                  id="text_attribution"
+                  type="text"
+                  placeholder="e.g. Map data © ..."
+                  value={options.attribution || ''}
+                  oninput={e => update('attribution', e.currentTarget.value)}
+                  style="flex:1;width:auto;"
+                />
+              </label>
 
-            <button
-              class="btn-icon"
-              title="Clear attribution"
-              aria-label="Clear attribution"
-              onclick={() => update('attribution', '')}
-            >
-              <X width="16" height="16" />
-            </button>
-          </div>
-          {#if isOsmBase(options.base)}
-            <label style="display: flex; align-items: center; gap: 0.5rem;">
-              <input
-                type="checkbox"
-                checked={options.hideOsm || false}
-                onchange={e => update('hideOsm', e.currentTarget.checked)}
-              />
-              Hide OpenStreetMap
+              <button
+                class="btn-icon"
+                title="Clear attribution"
+                aria-label="Clear attribution"
+                onclick={() => update('attribution', '')}
+              >
+                <X width="16" height="16" />
+              </button>
+            </div>
+          </fieldset>
+          <fieldset class="sub-options">
+            <legend>Animation</legend>
+            <label>
+              <input type="number" bind:value={options.animationDuration} />
+              Duration (ms)
             </label>
-          {/if}
-        </fieldset>
-        <fieldset class="sub-options">
-          <legend>Animation</legend>
-          <label>
-            <input type="number" bind:value={options.animationDuration} />
-            Duration (ms)
-          </label>
-        </fieldset>
+          </fieldset>
+        </div>
       </div>
     </div>
 

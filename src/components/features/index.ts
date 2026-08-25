@@ -7,13 +7,17 @@ import { iconFeature } from './Icon/index.ts';
 import { imageSourceFeature } from './ImageSource/index.ts';
 import { mapLabelsFeature } from './MapLabels/index.ts';
 import { customLabelsFeature } from './CustomLabels/index.ts';
+import { streetMapFeature } from './MapVector/index.ts';
+import { rasterFeature } from './MapRaster/index.ts';
 
 export const layerFeatureRegistry = [
   geoJsonFeature,
   iconFeature,
   imageSourceFeature,
   mapLabelsFeature,
-  customLabelsFeature
+  customLabelsFeature,
+  streetMapFeature,
+  rasterFeature
 ];
 
 export * from './GeoJson/index.ts';

@@ -1,7 +1,12 @@
 <script lang="ts">
   import type * as maplibregl from 'maplibre-gl';
-  import { getContext } from 'svelte';
-  import { addLayerWithZIndex, removeLayerWithZIndex, Z_INDEX_BASE_RASTER } from '../layers/layerUtils.ts';
+  import { getContext, untrack } from 'svelte';
+  import {
+    addLayerWithZIndex,
+    removeLayerWithZIndex,
+    setLayerZIndex,
+    Z_INDEX_BASE_RASTER
+  } from '../layers/layerUtils.ts';
 
   const mapRoot = getContext<{ map: maplibregl.Map }>('mapInstance');
 
@@ -9,39 +14,44 @@
     url,
     attribution,
     id = 'raster-base',
-    maxZoom
+    maxZoom = 7,
+    tileSize = 256,
+    zIndex = Z_INDEX_BASE_RASTER
   }: {
     url: string;
     attribution?: string;
     id?: string;
-    maxZoom: number;
+    maxZoom?: number;
+    tileSize?: number;
+    zIndex?: number;
   } = $props();
 
+  // Effect for source and layer lifecycle
   $effect(() => {
-    if (!mapRoot.map || !url) {
+    const map = mapRoot.map;
+    if (!map || !url) {
       return;
     }
 
-    const map = mapRoot.map;
     const sourceId = `${id}-source`;
+    const s_url = url;
+    const s_attribution = attribution;
+    const s_maxZoom = maxZoom;
+    const s_tileSize = tileSize;
 
-    const addLayer = () => {
-      if (!map.getSource(sourceId)) {
+    const setup = () => {
+      if (!map.getStyle() || map.getSource(sourceId)) return;
+
+      try {
         map.addSource(sourceId, {
           type: 'raster',
-          tiles: [url],
-          tileSize: 256,
-          attribution,
-          maxzoom: maxZoom
+          tiles: [s_url],
+          tileSize: s_tileSize,
+          attribution: s_attribution,
+          maxzoom: s_maxZoom
         });
-      }
 
-      // Ensure background is black for satellite
-      if (map.getLayer('background')) {
-        map.setPaintProperty('background', 'background-color', '#000');
-      }
-
-      if (!map.getLayer(id)) {
+        const initialZ = untrack(() => zIndex ?? Z_INDEX_BASE_RASTER);
         addLayerWithZIndex(
           map,
           {
@@ -52,23 +62,33 @@
               'raster-fade-duration': 0
             }
           },
-          Z_INDEX_BASE_RASTER
+          initialZ
         );
+      } catch (e) {
+        // Handled during style loads
       }
     };
 
-    if (map.isStyleLoaded()) {
-      addLayer();
-    } else {
-      map.on('styledata', addLayer);
-    }
+    setup();
+    map.on('styledata', setup);
+    map.on('load', setup);
 
     return () => {
-      map.off('styledata', addLayer);
+      map.off('styledata', setup);
+      map.off('load', setup);
       removeLayerWithZIndex(map, id);
       if (map.getSource(sourceId)) {
         map.removeSource(sourceId);
       }
     };
+  });
+
+  // Effect for dynamic z-index updates
+  $effect(() => {
+    const map = mapRoot.map;
+    const targetZ = zIndex;
+    if (!map || !map.getLayer(id) || targetZ === undefined) return;
+
+    setLayerZIndex(map, id, targetZ);
   });
 </script>

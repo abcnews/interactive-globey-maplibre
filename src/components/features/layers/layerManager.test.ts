@@ -4,6 +4,7 @@ import {
   findBeforeIdForZIndex,
   addLayerWithZIndex,
   setLayerZIndex,
+  setLayersZIndex,
   removeLayerWithZIndex,
   getLayerZIndex,
   clearMapLayerRegistry,
@@ -127,6 +128,25 @@ describe('layerManager', () => {
     // Demote layer-c below layer-b
     setLayerZIndex(map, 'layer-c', 150);
     expect(layers.map(l => l.id)).toEqual(['layer-c', 'layer-b', 'layer-a']);
+  });
+
+  it('should reorder a collection of layers atomically without sibling interception', () => {
+    const { map, layers } = createMockMap();
+
+    // Group A with 3 sub-layers at 350
+    addLayerWithZIndex(map, { id: 'raster-0' } as any, 310);
+    addLayerWithZIndex(map, { id: 'vector-1' } as any, 350);
+    addLayerWithZIndex(map, { id: 'vector-2' } as any, 350.001);
+    addLayerWithZIndex(map, { id: 'vector-3' } as any, 350.002);
+    addLayerWithZIndex(map, { id: 'labels' } as any, 500);
+
+    expect(layers.map(l => l.id)).toEqual(['raster-0', 'vector-1', 'vector-2', 'vector-3', 'labels']);
+
+    // Demote vector group below raster-0 (target base Z = 200)
+    setLayersZIndex(map, ['vector-1', 'vector-2', 'vector-3'], 200);
+
+    // All vector layers must now sit below raster-0
+    expect(layers.map(l => l.id)).toEqual(['vector-1', 'vector-2', 'vector-3', 'raster-0', 'labels']);
   });
 
   it('should clean up layer registry when removeLayerWithZIndex is called', () => {

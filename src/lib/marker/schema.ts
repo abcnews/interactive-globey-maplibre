@@ -217,6 +217,14 @@ export const mapLabelsSchema = object({
   .asArray()
   .transform(packBits);
 
+export const rasterItemSchema = object({
+  url: urlCodec.key('u'),
+  maxZoom: decimal().key('mz').default(7),
+  tileSize: decimal().key('ts').default(256),
+  attribution: base36String().key('a').default(''),
+  zIndex: decimal(2).key('z').optional()
+});
+
 /**
  * Root Marker Schema for globey-maplibre.
  */
@@ -284,9 +292,23 @@ export const markerSchema = object({
     .asBase36()
     .key('is')
     .default([]),
+  rasterLayers: array(rasterItemSchema)
+    .transform(
+      (items: any[]) =>
+        items?.filter(item => {
+          if (!item) return false;
+          const url = item.url || item.u;
+          return isValidUrl(url);
+        }) ?? [],
+      (items: any) => items
+    )
+    .asBase36()
+    .key('rl')
+    .default([]),
   labels: array(labelSchema).asBase36().key('labels').default([]),
   labelsZIndex: decimal(2).key('lz').optional(),
   mapLabelsZIndex: decimal(2).key('mlz').optional(),
+  streetMapZIndex: decimal(2).key('smz').optional(),
   fitGlobe: boolean().key('fit').default(false),
   constrainView: boolean().key('cv').default(false),
   attribution: base36String().key('attr').default(''),

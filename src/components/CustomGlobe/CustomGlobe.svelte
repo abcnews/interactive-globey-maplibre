@@ -6,6 +6,7 @@
   import ImageSourcesHandler from '../features/ImageSource/ImageSourcesHandler.svelte';
   import IconsHandler from '../features/Icon/IconsHandler.svelte';
   import MapRasterHandler from '../features/MapRaster/MapRasterHandler.svelte';
+  import MapRastersHandler from '../features/MapRaster/MapRastersHandler.svelte';
   import ProjectionHandler from '../features/Projection/ProjectionHandler.svelte';
   import AttributionHandler from '../features/Attribution/AttributionHandler.svelte';
   import { MAX_ZOOM } from '../../lib/constants';
@@ -28,9 +29,14 @@
   let mapInstance = $state<{ map: Map | null }>({ map: null });
   setContext('mapInstance', mapInstance);
 
-  const isDark = $derived(isDarkBase(options.base || 'street'));
-  const isSatellite = $derived(options.base === 'satellite');
-  const isVectorLight = $derived(options.base === 'street');
+  const hasRasterSatellite = $derived(
+    (options.rasterLayers || []).some(
+      r => r.url?.includes('marble') || r.url?.includes('satellite') || r.attribution?.toLowerCase().includes('nasa')
+    )
+  );
+  const isSatellite = $derived(options.base === 'satellite' || hasRasterSatellite);
+  const isDark = $derived(isSatellite || isDarkBase(options.base || 'street'));
+  const isVectorLight = $derived(options.base === 'street' && !hasRasterSatellite);
 
   onMount(() => {
     if (!mapContainer) return;
@@ -97,6 +103,8 @@
 
       <MapVectorHandler
         base={options.base}
+        hideOsm={options.hideOsm}
+        streetMapZIndex={options.streetMapZIndex}
         labels={options.mapLabels}
         zIndex={options.mapLabelsZIndex}
         {isSatellite}
@@ -104,7 +112,9 @@
 
       <MapCustomLabelHandler labels={options.labels} zIndex={options.labelsZIndex} {isDark} />
 
-      {#if options.base === 'satellite'}
+      {#if options.rasterLayers && options.rasterLayers.length > 0}
+        <MapRastersHandler config={options.rasterLayers} />
+      {:else if options.base === 'satellite'}
         <MapRasterHandler
           url={`https://abcnewsdata.sgp1.digitaloceanspaces.com/map-raster-tiles-${options.satelliteVariant || 'blue'}-marble/{z}/{x}/{y}.webp`}
           maxZoom={7}

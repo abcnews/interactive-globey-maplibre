@@ -171,6 +171,39 @@ export function setLayerZIndex(map: MapLibreMap, layerId: string, zIndex: number
 }
 
 /**
+ * Updates the Z-Index for a collection of layers as a cohesive unit.
+ *
+ * First updates all layer Z-Indices in the registry to prevent sibling layers from
+ * intercepting each other in `findBeforeIdForZIndex`, then moves each layer in order.
+ */
+export function setLayersZIndex(
+  map: MapLibreMap,
+  layerIds: string[],
+  baseZIndex: number,
+  step = 0.0001
+): void {
+  if (!map || !layerIds?.length) return;
+
+  const registry = getMapRegistry(map);
+
+  // 1. Update all registry entries first
+  layerIds.forEach((id, idx) => {
+    registry.set(id, baseZIndex + idx * step);
+  });
+
+  // 2. Move each layer in order to its calculated position
+  layerIds.forEach((id, idx) => {
+    if (!map.getLayer(id)) return;
+    const targetZ = baseZIndex + idx * step;
+    const beforeId = findBeforeIdForZIndex(map, targetZ);
+    const validBeforeId = beforeId && map.getLayer(beforeId) ? beforeId : undefined;
+    if (validBeforeId !== id) {
+      map.moveLayer(id, validBeforeId);
+    }
+  });
+}
+
+/**
  * Removes a layer from the map and deregisters its Z-Index.
  *
  * @param map MapLibre Map instance

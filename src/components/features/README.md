@@ -36,7 +36,7 @@ The Map Renderer is a Svelte component that mounts inside the MapLibre container
 
 - Use `addLayerWithZIndex` and `removeLayerWithZIndex` from [./layers/layerUtils.ts](./layers/layerUtils.ts). Never call `map.addLayer()` or `map.removeLayer()` directly.
 - Separate layer lifecycle (adding/removing layers on mount/unmount) from data updates. Combining both in one effect tears down the layer each time it updates, resulting in a visual flash of that layer.
-- Update data in place (e.g. `source.setData()`, `source.setCoordinates()`, `map.setPaintProperty()`) rather than re-creating layers.
+- Update data in place (e.g. `source.setData()`, `source.setCoordinates()`, `map.setPaintProperty()`, `map.setLayoutProperty()`) rather than re-creating layers whenever possible.
 - For collections, use stable keys in `{#each}` loops (`item.id || index`).
 
 ### Example Reference
@@ -44,6 +44,7 @@ The Map Renderer is a Svelte component that mounts inside the MapLibre container
 - Single/Collection map renderer: [Icon/IconHandler.svelte](./Icon/IconHandler.svelte) and [Icon/IconsHandler.svelte](./Icon/IconsHandler.svelte)
 - Complex geojson renderer: [GeoJson/GeoJsonRenderer.svelte](./GeoJson/GeoJsonRenderer.svelte) and [GeoJson/GeoJsonHandler.svelte](./GeoJson/GeoJsonHandler.svelte)
 - Image overlay renderer: [ImageSource/ImageSourceHandler.svelte](./ImageSource/ImageSourceHandler.svelte)
+- Raster tile renderer: [MapRaster/MapRasterHandler.svelte](./MapRaster/MapRasterHandler.svelte) and [MapRaster/MapRastersHandler.svelte](./MapRaster/MapRastersHandler.svelte)
 
 ---
 
@@ -53,18 +54,19 @@ If the feature is configurable by the user in the builder interface, create a mo
 
 ### Key Rules
 
-- Name builder components with the `Builder` prefix (e.g. `BuilderIconConfigModal.svelte`).
-- Modify form state locally and only mutate the bound `config` on `handleSave()`.
-- Set `<Modal onClose={handleCancel}>` so backdrop or X clicks cancel rather than save.
-- Clean up incomplete drafts on cancel.
-- For CMID inputs, use [../Builder/CmidInput/CmidInput.svelte](../Builder/CmidInput/CmidInput.svelte).
+- Name builder components with the `Builder` prefix (e.g. `BuilderRasterConfigModal.svelte`).
+- Set `<Modal position="right" onClose={() => onclose?.()}>` so the map remains fully visible on the left during configuration.
+- **Real-time Live Editing**: Bind form inputs directly to `config` (e.g. `bind:value={config.field}`, `bind:checked={config.field}`) so the user sees changes update live on the map as they interact.
+- Provide a single **OK** dismissal button in `footerChildren` (`<button type="button" onclick={() => onclose?.()}>OK</button>`).
+- For string attributes containing literal curly braces (such as tile URL templates `{z}/{x}/{y}`), pass them as JavaScript string expressions (`placeholder={'https://example.com/{z}/{x}/{y}.png'}`) to avoid Svelte template expression parsing errors.
+- For CMID inputs, use [../Builder/CmidInput/CmidInput.svelte](../Builder/CmidInput/CmidInput.svelte) with `type="text"`, `inputmode="numeric"`, and `pattern="[0-9]*"`.
 
 ### Example Reference
 
-- Modal: [Icon/BuilderIconConfigModal.svelte](./Icon/BuilderIconConfigModal.svelte)
+- Live Toggle Modal: [MapLabels/BuilderMapLabelsConfigModal.svelte](./MapLabels/BuilderMapLabelsConfigModal.svelte)
+- Live Preset & URL Modal: [MapRaster/BuilderRasterConfigModal.svelte](./MapRaster/BuilderRasterConfigModal.svelte)
 - Multi-Tab Modal: [GeoJson/BuilderGeoJsonConfigModal.svelte](./GeoJson/BuilderGeoJsonConfigModal.svelte)
 - Import-driven Modal: [ImageSource/BuilderImageSourceConfigModal.svelte](./ImageSource/BuilderImageSourceConfigModal.svelte)
-- Toggle-Grid Modal: [MapLabels/BuilderMapLabelsConfigModal.svelte](./MapLabels/BuilderMapLabelsConfigModal.svelte)
 
 ---
 
@@ -148,6 +150,8 @@ interactivePlacement: {
 - Multi-Item Feature: [Icon/index.ts](./Icon/index.ts)
 - Complex Multi-Rule Feature: [GeoJson/index.ts](./GeoJson/index.ts)
 - Single-Toggle Feature: [MapLabels/index.ts](./MapLabels/index.ts)
+- Base Layer Feature: [MapVector/index.ts](./MapVector/index.ts)
+- Raster Tile Feature: [MapRaster/index.ts](./MapRaster/index.ts)
 
 ---
 
@@ -156,7 +160,13 @@ interactivePlacement: {
 Add your feature definition to `layerFeatureRegistry` in [./index.ts](./index.ts).
 
 ```ts
-import { myFeature } from './MyFeature/index.ts';
+import { geoJsonFeature } from './GeoJson/index.ts';
+import { iconFeature } from './Icon/index.ts';
+import { imageSourceFeature } from './ImageSource/index.ts';
+import { mapLabelsFeature } from './MapLabels/index.ts';
+import { customLabelsFeature } from './CustomLabels/index.ts';
+import { streetMapFeature } from './MapVector/index.ts';
+import { rasterFeature } from './MapRaster/index.ts';
 
 export const layerFeatureRegistry = [
   geoJsonFeature,
@@ -164,10 +174,9 @@ export const layerFeatureRegistry = [
   imageSourceFeature,
   mapLabelsFeature,
   customLabelsFeature,
-  myFeature
+  streetMapFeature,
+  rasterFeature
 ];
-
-export * from './MyFeature/index.ts';
 ```
 
 Adding to `layerFeatureRegistry` automatically enables:
@@ -197,8 +206,8 @@ If the feature renders visual elements on the map, import its handler component 
 
 - [ ] Schema added to `schema.ts` and exported in `types.ts`.
 - [ ] Map handler component built using `addLayerWithZIndex` / `removeLayerWithZIndex`.
-- [ ] Builder modal prefixed with `Builder` and using `CmidInput` for CMID fields.
+- [ ] Builder modal prefixed with `Builder`, positioned `right`, updating live with single `OK` button.
 - [ ] Feature specification defined in `index.ts` implementing `LayerFeatureDefinition<T>`.
 - [ ] Feature exported and added to `layerFeatureRegistry` in [./index.ts](./index.ts).
 - [ ] Map handler mounted in [../CustomGlobe/CustomGlobe.svelte](../CustomGlobe/CustomGlobe.svelte).
-- [ ] Unit tests added for helper functions (`utils.test.ts`).
+- [ ] Unit tests added (`index.test.ts`).
