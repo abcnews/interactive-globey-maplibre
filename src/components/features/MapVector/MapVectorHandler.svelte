@@ -38,9 +38,7 @@
       states: false,
       cities: false,
       towns: false,
-      oceans: false,
-      nationalBoundaries: true,
-      stateBoundaries: false
+      oceans: false
     },
     zIndex = Z_INDEX_BASE_LABELS,
     isSatellite = false
@@ -163,8 +161,6 @@
     const cities = labels?.cities ?? false;
     const towns = labels?.towns ?? false;
     const oceans = labels?.oceans ?? false;
-    const nationalBoundaries = labels?.nationalBoundaries ?? true;
-    const stateBoundaries = labels?.stateBoundaries ?? false;
 
     const syncVisibility = () => {
       // COUNTRIES
@@ -258,13 +254,13 @@
 
       // BOUNDARIES
       if (map.getLayer('boundary-land-level-2')) {
-        map.setLayoutProperty('boundary-land-level-2', 'visibility', nationalBoundaries ? 'visible' : 'none');
+        map.setLayoutProperty('boundary-land-level-2', 'visibility', 'visible');
       }
       if (map.getLayer('boundary-land-disputed')) {
-        map.setLayoutProperty('boundary-land-disputed', 'visibility', nationalBoundaries ? 'visible' : 'none');
+        map.setLayoutProperty('boundary-land-disputed', 'visibility', 'visible');
       }
       if (map.getLayer('boundary-land-level-4')) {
-        map.setLayoutProperty('boundary-land-level-4', 'visibility', stateBoundaries ? 'visible' : 'none');
+        map.setLayoutProperty('boundary-land-level-4', 'visibility', 'none');
       }
       if (map.getLayer('boundary-land-level-6')) {
         map.setLayoutProperty('boundary-land-level-6', 'visibility', 'none');

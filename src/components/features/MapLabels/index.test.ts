@@ -76,9 +76,9 @@ describe('MapLabels Feature Definition', () => {
     assert.strictEqual(defaultItem.oceans, true);
   });
 
-  it('add should populate all map labels as true while preserving boundaries', () => {
+  it('add should populate all map labels as true and remove _disabled', () => {
     const options: DecodedObject = {
-      mapLabels: { ...DISABLED_MAP_LABELS, nationalBoundaries: false, stateBoundaries: true, _disabled: true }
+      mapLabels: { ...DISABLED_MAP_LABELS, _disabled: true }
     } as any;
 
     const defaultItem = mapLabelsFeature.createDefault({ maxZIndex: 500 });
@@ -87,14 +87,12 @@ describe('MapLabels Feature Definition', () => {
     assert.strictEqual(options.mapLabels?.continents, true);
     assert.strictEqual(options.mapLabels?.cities, true);
     assert.strictEqual(options.mapLabels?.towns, true);
-    assert.strictEqual(options.mapLabels?.nationalBoundaries, false);
-    assert.strictEqual(options.mapLabels?.stateBoundaries, true);
     assert.strictEqual((options.mapLabels as any)?._disabled, undefined);
   });
 
-  it('delete should mark _disabled true and disable text labels while preserving boundaries', () => {
+  it('delete should mark _disabled true and disable text labels', () => {
     const options: DecodedObject = {
-      mapLabels: { ...DEFAULT_MAP_LABELS, nationalBoundaries: true, stateBoundaries: true }
+      mapLabels: { ...DEFAULT_MAP_LABELS }
     } as any;
 
     const [item] = mapLabelsFeature.getItems(options);
@@ -102,8 +100,6 @@ describe('MapLabels Feature Definition', () => {
     assert.strictEqual(options.mapLabels?.countriesMajor, false);
     assert.strictEqual(options.mapLabels?.countriesMedium, false);
     assert.strictEqual(options.mapLabels?.countriesMinor, false);
-    assert.strictEqual(options.mapLabels?.nationalBoundaries, true);
-    assert.strictEqual(options.mapLabels?.stateBoundaries, true);
     assert.strictEqual((options.mapLabels as any)?._disabled, true);
   });
 });

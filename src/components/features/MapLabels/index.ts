@@ -56,8 +56,6 @@ export const mapLabelsFeature: LayerFeatureDefinition<MapLabelsConfig> = {
 
   add(options: DecodedObject, item: MapLabelsConfig) {
     options.mapLabels = {
-      nationalBoundaries: options.mapLabels?.nationalBoundaries ?? true,
-      stateBoundaries: options.mapLabels?.stateBoundaries ?? false,
       countriesMajor: item?.countriesMajor ?? true,
       countriesMedium: item?.countriesMedium ?? true,
       countriesMinor: item?.countriesMinor ?? true,
