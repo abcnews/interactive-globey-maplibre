@@ -2,6 +2,7 @@ import type { LayerFeatureDefinition, LayerItemDescriptor } from '../types.ts';
 import type { DecodedObject, MapLabelsConfig } from '../../../lib/marker';
 import { Z_INDEX_BASE_LABELS } from '../layers/layerUtils.ts';
 import { Tag as LabelIcon } from 'svelte-bootstrap-icons';
+import { createEditButton, createDeleteButton } from '../buttonHelpers.ts';
 import BuilderMapLabelsConfigModal from './BuilderMapLabelsConfigModal.svelte';
 
 export const mapLabelsFeature: LayerFeatureDefinition<MapLabelsConfig> = {
@@ -10,6 +11,11 @@ export const mapLabelsFeature: LayerFeatureDefinition<MapLabelsConfig> = {
   icon: LabelIcon,
   defaultZIndex: Z_INDEX_BASE_LABELS,
   isMultiItem: false,
+
+  buttons: [
+    createEditButton<MapLabelsConfig>({ title: 'Edit map labels' }),
+    createDeleteButton<MapLabelsConfig>({ title: 'Hide map labels' })
+  ],
 
   canAdd(options: DecodedObject) {
     if (!options.mapLabels) return true;

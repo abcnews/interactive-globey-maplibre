@@ -132,6 +132,38 @@ export const myFeature: LayerFeatureDefinition<MyFeatureConfig> = {
 };
 ```
 
+### Action Buttons (Optional)
+
+Layer action buttons displayed in `PropLayers` (e.g. edit modal, delete, or custom actions like adding items) are defined via `buttons` or generated using standard helpers from [./buttonHelpers.ts](./buttonHelpers.ts):
+
+```ts
+import { createEditButton, createDeleteButton } from '../buttonHelpers.ts';
+import { Plus } from 'svelte-bootstrap-icons';
+
+// Standard edit and delete buttons:
+buttons: [createEditButton(), createDeleteButton()]
+
+// Custom action buttons (e.g. Add item):
+buttons: [
+  {
+    id: 'add',
+    title: 'Add label',
+    ariaLabel: 'Add label',
+    icon: Plus,
+    onclick: ({ options, startInteractivePlacement }) => {
+      startInteractivePlacement({
+        prompt: 'Click on the map to place a label',
+        onMapClick: (coords) => {
+          options.labels = [...(options.labels || []), { name: 'Label', coords, style: 'country-large', number: 0 }];
+        }
+      });
+    }
+  },
+  createEditButton(),
+  createDeleteButton()
+]
+```
+
 ### Interactive Placement (Optional)
 
 If placing the item requires clicking on the map, provide `interactivePlacement`:
@@ -150,6 +182,7 @@ interactivePlacement: {
 - Multi-Item Feature: [Icon/index.ts](./Icon/index.ts)
 - Complex Multi-Rule Feature: [GeoJson/index.ts](./GeoJson/index.ts)
 - Single-Toggle Feature: [MapLabels/index.ts](./MapLabels/index.ts)
+- Custom Button Feature: [CustomLabels/index.ts](./CustomLabels/index.ts)
 - Base Layer Feature: [MapVector/index.ts](./MapVector/index.ts)
 - Raster Tile Feature: [MapRaster/index.ts](./MapRaster/index.ts)
 

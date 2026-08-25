@@ -4,12 +4,14 @@
   import {
     layerFeatureRegistry,
     Z_INDEX_IMAGE_LAYERS,
+    getDefaultLayerButtons,
     type LayerItemDescriptor,
-    type LayerFeatureDefinition
+    type LayerFeatureDefinition,
+    type LayerButton
   } from '../../features';
   import { safeFitBounds } from '../utils';
   import PropList from '../PropList.svelte';
-  import { Pencil, Trash, Plus } from 'svelte-bootstrap-icons';
+  import { Plus } from 'svelte-bootstrap-icons';
 
   interface Props {
     /** Marker options decoded object bound to the builder. */
@@ -27,11 +29,12 @@
     data: any;
   } | null>(null);
 
-  /** Active interactive placement state (e.g. click-to-place icons) */
+  /** Active interactive placement state (e.g. click-to-place icons or custom buttons) */
   let activePlacement = $state<{
-    feature: LayerFeatureDefinition<any>;
+    feature?: LayerFeatureDefinition<any>;
     prompt: string;
-    item: any;
+    item?: any;
+    customHandler?: (coords: [number, number], item?: any) => void;
   } | null>(null);
 
   /** Whether the "Add Layer" dropdown menu is open. */
@@ -46,22 +49,36 @@
     showAddMenu = false;
   }
 
+  function startInteractivePlacement(placement: {
+    prompt: string;
+    onMapClick: (coords: [number, number], item?: any) => void;
+  }) {
+    editingItem = null;
+    activePlacement = {
+      prompt: placement.prompt,
+      customHandler: placement.onMapClick
+    };
+  }
+
   /** Visual layer stack ordered from top (highest z-index) to bottom */
   const layers = $derived.by(() => {
     const list: (LayerItemDescriptor<any> & {
       feature: LayerFeatureDefinition<any>;
-      onEdit?: () => void;
-      onDelete?: () => void;
+      resolvedButtons: LayerButton<any>[];
     })[] = [];
 
     layerFeatureRegistry.forEach(feature => {
       const items = feature.getItems(options);
       items.forEach(item => {
+        const itemDescriptorWithFeature = { ...item, feature };
+        const rawButtons =
+          item.buttons ||
+          (typeof feature.buttons === 'function' ? feature.buttons(item, options) : feature.buttons) ||
+          getDefaultLayerButtons(feature, item, options);
+
         list.push({
-          ...item,
-          feature,
-          onEdit: feature.ConfigModal ? () => openEditModal(feature, item) : undefined,
-          onDelete: () => feature.delete(options, item)
+          ...itemDescriptorWithFeature,
+          resolvedButtons: rawButtons
         });
       });
     });
@@ -116,25 +133,34 @@
 
   function handleMapClick(e: any) {
     if (!activePlacement) return;
-    const { feature, item } = activePlacement;
     const coords: [number, number] = [e.lngLat.lng, e.lngLat.lat];
 
-    feature.interactivePlacement?.onMapClick(coords, item);
-    feature.add(options, item);
+    if (activePlacement.customHandler) {
+      const handler = activePlacement.customHandler;
+      const item = activePlacement.item;
+      activePlacement = null;
+      handler(coords, item);
+      return;
+    }
 
-    const placementMaxZ = layers.length > 0 ? Math.max(...layers.map(l => l.zIndex)) + 10 : feature.defaultZIndex;
+    if (activePlacement.feature) {
+      const { feature, item } = activePlacement;
+      feature.interactivePlacement?.onMapClick(coords, item);
+      feature.add(options, item);
 
-    activePlacement = null;
+      const placementMaxZ = layers.length > 0 ? Math.max(...layers.map(l => l.zIndex)) + 10 : feature.defaultZIndex;
+      activePlacement = null;
 
-    if (feature.ConfigModal) {
-      openEditModal(feature, {
-        id: `${feature.kind}-${Date.now()}`,
-        kind: feature.kind,
-        name: feature.label,
-        description: '',
-        zIndex: placementMaxZ,
-        data: item
-      });
+      if (feature.ConfigModal) {
+        openEditModal(feature, {
+          id: `${feature.kind}-${Date.now()}`,
+          kind: feature.kind,
+          name: feature.label,
+          description: '',
+          zIndex: placementMaxZ,
+          data: item
+        });
+      }
     }
   }
 
@@ -171,7 +197,6 @@
         feature.delete(options, descriptor);
       }
     }
-    options = { ...options };
     editingItem = null;
   }
 </script>
@@ -220,22 +245,39 @@
         <span class="layer-desc">{item.description}</span>
       {/snippet}
       {#snippet actions(item)}
-        {#if item.onEdit}
-          <button class="btn-icon" aria-label="Edit" title="Edit" onclick={item.onEdit}>
-            <Pencil />
+        {#each item.resolvedButtons as btn (btn.id)}
+          <button
+            type="button"
+            class="btn-icon"
+            aria-label={btn.ariaLabel || btn.title}
+            title={btn.title}
+            onclick={() => {
+              btn.onclick({
+                options,
+                item,
+                map,
+                startInteractivePlacement,
+                openModal: () => {
+                  const currentItems = item.feature.getItems(options);
+                  const matchingItem = currentItems.find(i => i.id === item.id) || currentItems[0] || item;
+                  openEditModal(item.feature, matchingItem);
+                }
+              });
+            }}
+          >
+            <btn.icon />
           </button>
-        {/if}
-        {#if item.onDelete}
-          <button class="btn-icon" aria-label="Delete" title="Delete" onclick={item.onDelete}>
-            <Trash />
-          </button>
-        {/if}
+        {/each}
       {/snippet}
     </PropList>
   {/if}
 
   {#if editingItem?.feature.ConfigModal}
-    <editingItem.feature.ConfigModal bind:config={editingItem.data} onclose={handleClose} />
+    {#if editingItem.feature.kind === 'customLabels'}
+      <editingItem.feature.ConfigModal bind:config={options.labels} {map} onclose={handleClose} />
+    {:else}
+      <editingItem.feature.ConfigModal bind:config={editingItem.data} {map} onclose={handleClose} />
+    {/if}
   {/if}
 </fieldset>
 

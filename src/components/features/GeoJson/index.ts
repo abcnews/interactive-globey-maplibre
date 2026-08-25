@@ -2,6 +2,7 @@ import type { LayerFeatureDefinition, LayerItemDescriptor } from '../types.ts';
 import type { GeoJsonConfig, DecodedObject } from '../../../lib/marker';
 import { Z_INDEX_GEOJSON } from '../layers/layerUtils.ts';
 import { Map as MapIcon } from 'svelte-bootstrap-icons';
+import { createEditButton, createDeleteButton } from '../buttonHelpers.ts';
 import BuilderGeoJsonConfigModal from './BuilderGeoJsonConfigModal.svelte';
 import GeoJsonHandler from './GeoJsonHandler.svelte';
 
@@ -11,6 +12,11 @@ export const geoJsonFeature: LayerFeatureDefinition<GeoJsonConfig> = {
   icon: MapIcon,
   defaultZIndex: Z_INDEX_GEOJSON,
   isMultiItem: true,
+
+  buttons: [
+    createEditButton<GeoJsonConfig>({ title: 'Edit GeoJSON layer' }),
+    createDeleteButton<GeoJsonConfig>({ title: 'Delete GeoJSON layer' })
+  ],
 
   createDefault({ maxZIndex }) {
     return {

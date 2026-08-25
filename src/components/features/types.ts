@@ -3,6 +3,41 @@ import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { DecodedObject } from '../../lib/marker';
 
 /**
+ * Context passed to a LayerButton's onclick handler.
+ */
+export interface LayerButtonContext<T = any> {
+  /** Decoded marker options object */
+  options: DecodedObject;
+  /** Current layer item descriptor */
+  item: LayerItemDescriptor<T>;
+  /** MapLibre map instance if available */
+  map?: MapLibreMap;
+  /** Starts interactive map click placement */
+  startInteractivePlacement: (placement: {
+    prompt: string;
+    onMapClick: (coords: [number, number], item?: any) => void;
+  }) => void;
+  /** Opens the layer's configuration modal */
+  openModal: () => void;
+}
+
+/**
+ * Standard button rendered for a layer item in PropLayers.
+ */
+export interface LayerButton<T = any> {
+  /** Unique identifier for the action button */
+  id: string;
+  /** Hover tooltip text */
+  title: string;
+  /** Accessible ARIA label (falls back to title if omitted) */
+  ariaLabel?: string;
+  /** Svelte icon component */
+  icon: any;
+  /** Click action callback */
+  onclick: (context: LayerButtonContext<T>) => void;
+}
+
+/**
  * Standard descriptor for an item displayed in the PropLayers visual list.
  */
 export interface LayerItemDescriptor<T = any> {
@@ -18,6 +53,8 @@ export interface LayerItemDescriptor<T = any> {
   zIndex: number;
   /** Reference to the underlying data object (for array items) */
   data?: T;
+  /** Custom action buttons for this specific item */
+  buttons?: LayerButton<T>[];
 }
 
 /**
@@ -52,6 +89,11 @@ export interface LayerFeatureDefinition<T = any> {
   };
 
   /**
+   * Optional action buttons or action button factory function for layer items.
+   */
+  buttons?: LayerButton<T>[] | ((item: LayerItemDescriptor<T>, options: DecodedObject) => LayerButton<T>[]);
+
+  /**
    * Generates a new layer object populated with sensible defaults.
    */
   createDefault: (context: { maxZIndex: number; map?: MapLibreMap }) => T;
@@ -81,6 +123,7 @@ export interface LayerFeatureDefinition<T = any> {
    */
   ConfigModal?: Component<{
     config: any;
+    map?: MapLibreMap;
     onclose?: (bounds?: [number, number][]) => void;
   }>;
 
@@ -93,3 +136,4 @@ export interface LayerFeatureDefinition<T = any> {
     options?: DecodedObject;
   }>;
 }
+

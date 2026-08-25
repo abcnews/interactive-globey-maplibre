@@ -1,4 +1,5 @@
 export * from './types.ts';
+export * from './buttonHelpers.ts';
 export * from './layers/layerManager.ts';
 export * from './layers/layerUtils.ts';
 

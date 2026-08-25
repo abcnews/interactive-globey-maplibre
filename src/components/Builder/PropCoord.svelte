@@ -3,7 +3,6 @@
   import { options } from './store';
   import type * as maplibregl from 'maplibre-gl';
   import PropBounds from './PropBounds.svelte';
-  import GeoSearch from './GeoSearch/GeoSearch.svelte';
   import { QuestionCircle } from 'svelte-bootstrap-icons';
 
   import { disableMapAnimation } from '../../lib/stores';
@@ -248,7 +247,6 @@
         {onpaste}
         placeholder="Paste lat,lng or Google Maps URL"
       />
-      <GeoSearch onselect={onGeoSelect} />
     </div>
 
     <select

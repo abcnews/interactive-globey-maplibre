@@ -72,12 +72,12 @@
     const geoJsonData: GeoJSON.FeatureCollection<GeoJSON.Point> = {
       type: 'FeatureCollection',
       features: (labels || [])
-        .filter(label => Boolean(label?.coords && label?.name))
+        .filter(label => Boolean(label?.coords))
         .map((label, index) => ({
           type: 'Feature',
           id: index,
           properties: {
-            name: label.name,
+            name: label.name || '',
             style: label.style
           },
           geometry: {

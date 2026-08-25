@@ -2,6 +2,7 @@ import type { LayerFeatureDefinition, LayerItemDescriptor } from '../types.ts';
 import type { IconConfig, DecodedObject } from '../../../lib/marker';
 import { Z_INDEX_CUSTOM_LABELS } from '../layers/layerUtils.ts';
 import { Image as ImageIcon } from 'svelte-bootstrap-icons';
+import { createEditButton, createDeleteButton } from '../buttonHelpers.ts';
 import BuilderIconConfigModal from './BuilderIconConfigModal.svelte';
 import IconsHandler from './IconsHandler.svelte';
 
@@ -11,6 +12,11 @@ export const iconFeature: LayerFeatureDefinition<IconConfig> = {
   icon: ImageIcon,
   defaultZIndex: Z_INDEX_CUSTOM_LABELS,
   isMultiItem: true,
+
+  buttons: [
+    createEditButton<IconConfig>({ title: 'Edit icon marker' }),
+    createDeleteButton<IconConfig>({ title: 'Delete icon marker' })
+  ],
 
   createDefault({ maxZIndex, map }) {
     const center = map?.getCenter() || { lng: 133.7751, lat: -25.2744 };
