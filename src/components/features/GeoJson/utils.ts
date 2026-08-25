@@ -1,0 +1,302 @@
+import type { Map } from 'maplibre-gl';
+import {
+  getDivergentContinuousPaletteInterpolator,
+  SequentialPalette,
+  DivergentPalette,
+  ColourMode
+} from '@abcnews/palette';
+import { interpolateColour, getCustomPaletteInterpolator } from '../../../lib/colours.ts';
+import type { GeoJsonConfig, GeoJsonStyleConfig } from '../../../lib/marker';
+import { getSequentialInterpolator } from '../../../lib/sequentialPalette.ts';
+import { THEMES } from './themes.ts';
+
+export { generateGeoJsonSourceId as generateId, getLabelAnchor } from '../layers/layerUtils.ts';
+
+/** Earth equatorial circumference in kilometres */
+export const EARTH_CIRCUMFERENCE_KM = 40075;
+
+/** Standard Web Mercator tile size in pixels at zoom 0 */
+export const TILE_SIZE_PX = 512;
+
+/**
+ * Generates a MapLibre zoom-interpolation expression to scale kilometre-based dimensions (points or lines)
+ * so that they maintain constant real-world physical size on the globe across zoom levels.
+ *
+ * @param valueInKm Width or radius in kilometres
+ */
+export function getKilometreZoomScaleExpression(valueInKm: number): any {
+  const sizeAtZoom0 = (valueInKm / EARTH_CIRCUMFERENCE_KM) * TILE_SIZE_PX;
+  return [
+    'interpolate',
+    ['exponential', 2],
+    ['zoom'],
+    0,
+    sizeAtZoom0,
+    22,
+    sizeAtZoom0 * Math.pow(2, 22)
+  ];
+}
+
+export interface GeoJsonFeatureState {
+  color: string;
+  fillColor: string;
+  strokeColor: string;
+  outlineColor: string;
+  radius: number;
+  strokeWidth: number;
+  outlineWidth: number;
+  opacity: number;
+  fillOpacity: number;
+  strokeOpacity: number;
+}
+
+/**
+ * Creates a colour interpolation function based on the builder's configuration.
+ * This serves as the single source of truth for colour scaling across 2D layers
+ * and 3D spikes.
+ *
+ * @param style The GeoJSON style configuration
+ * @returns An interpolator function for mapping 0-1 values to CSS colours
+ */
+export function getPaletteInterpolator(style: GeoJsonStyleConfig): ((t: number) => string) | null {
+  const { paletteType, paletteVariant, customPalette } = style.colourConfig || {};
+  if (!paletteType) return null;
+
+  if (paletteType === 'sequential' && paletteVariant) {
+    if (Object.values(SequentialPalette).includes(paletteVariant as any)) {
+      return getSequentialInterpolator(paletteVariant as SequentialPalette, ColourMode.Light);
+    }
+  } else if (paletteType === 'divergent' && paletteVariant) {
+    const variant = DivergentPalette[paletteVariant as keyof typeof DivergentPalette];
+    if (variant) {
+      return getDivergentContinuousPaletteInterpolator(variant, ColourMode.Light);
+    }
+  } else if (paletteType === 'custom' && customPalette) {
+    return getCustomPaletteInterpolator(customPalette);
+  }
+
+  return null;
+}
+
+/**
+ * Creates a single style evaluator for computing per-feature style state.
+ */
+function getSingleStyleEvaluator(
+  config: GeoJsonConfig,
+  style: GeoJsonStyleConfig
+): (feature: any, index: number) => GeoJsonFeatureState {
+  const baseOpacity = style.opacity ?? 1;
+  const isOpaque = style.isOpaque ?? false;
+  const colourMode = style.colourMode || 'basic';
+  const colourConfig = style.colourConfig;
+  const colourProp = style.colourProp;
+
+  const interpolator = colourMode === 'scale' ? getPaletteInterpolator(style) : null;
+  const min = colourConfig?.min ?? 0;
+  const max = colourConfig?.max ?? 100;
+  const range = max - min || 1;
+  const minColour = colourConfig?.minColour || '#ffffff';
+  const maxColour = colourConfig?.maxColour || '#ff0000';
+
+  const basicPreset = THEMES[colourConfig?.basicType || 'normal'] || THEMES.normal;
+  const basicColor = colourConfig?.basicType ? basicPreset.color : colourConfig?.basic || basicPreset.color;
+
+  return (feature: any) => {
+    const props = feature?.properties || {};
+
+    // 1. Calculate color / fillColor / strokeColor
+    let markerColor = basicColor;
+    let strokeColor = basicColor;
+    let fillColor = basicColor;
+
+    if (colourMode === 'basic') {
+      markerColor = basicColor;
+      strokeColor = basicColor;
+      fillColor = basicColor;
+    } else if (colourMode === 'simple') {
+      markerColor = props['marker-color'] || props['stroke'] || props['fill'] || props['fill-color'] || '#00267E';
+      strokeColor = props['stroke'] || '#00267E';
+      fillColor = props['fill'] || props['fill-color'] || '#00267E';
+    } else if (colourMode === 'scale') {
+      let val = Number(props[colourProp || ''] ?? feature?.cVal ?? 0);
+      if (isNaN(val)) val = 0;
+      const factor = Math.max(0, Math.min(1, (val - min) / range));
+      let evaluatedColour = '#888888';
+      if (interpolator) {
+        evaluatedColour = interpolator(factor);
+      } else if (val <= min) {
+        evaluatedColour = minColour;
+      } else if (val >= max) {
+        evaluatedColour = maxColour;
+      } else {
+        evaluatedColour = interpolateColour(minColour, maxColour, factor);
+      }
+      markerColor = evaluatedColour;
+      strokeColor = evaluatedColour;
+      fillColor = evaluatedColour;
+    }
+
+    // 2. Calculate opacities
+    let fillOpacityFactor = basicPreset.fillOpacity;
+    let strokeOpacityFactor = basicPreset.strokeOpacity;
+
+    if (colourMode === 'simple') {
+      fillOpacityFactor = Number(props['fill-opacity']) || (isOpaque ? 1.0 : 0.5);
+      strokeOpacityFactor = Number(props['stroke-opacity']) || 1.0;
+    } else if (isOpaque) {
+      fillOpacityFactor = 1.0;
+    }
+
+    const calculatedFillOpacity = baseOpacity * fillOpacityFactor;
+    const calculatedStrokeOpacity = baseOpacity * strokeOpacityFactor;
+    const calculatedCircleOpacity =
+      colourMode === 'simple' && props['opacity'] !== undefined
+        ? baseOpacity * Number(props['opacity'])
+        : calculatedFillOpacity;
+
+    // 3. Calculate radius & stroke width
+    let radius = basicPreset.radius;
+    if (config.pointSize && config.pointSize.unit === 'p') {
+      radius = config.pointSize.value;
+    } else if (colourMode === 'simple') {
+      const sizeProp = props['marker-size'];
+      if (sizeProp === 'small') radius = 4;
+      else if (sizeProp === 'large') radius = 9;
+      else if (sizeProp !== undefined && !isNaN(Number(sizeProp))) radius = Number(sizeProp);
+    }
+
+    let strokeWidth = basicPreset.strokeWidth;
+    if (config.lineWidth && config.lineWidth.unit === 'p') {
+      strokeWidth = config.lineWidth.value;
+    } else if (colourMode === 'simple' && props['stroke-width'] !== undefined) {
+      strokeWidth = Number(props['stroke-width']) || 2;
+    }
+
+    return {
+      color: markerColor,
+      fillColor,
+      strokeColor,
+      outlineColor: '#ffffff',
+      radius,
+      strokeWidth,
+      outlineWidth: strokeWidth + 2,
+      opacity: calculatedCircleOpacity,
+      fillOpacity: calculatedFillOpacity,
+      strokeOpacity: calculatedStrokeOpacity
+    };
+  };
+}
+
+/**
+ * Returns a function that calculates the styling (colours, opacities, sizes) for a single GeoJSON feature.
+ * It checks the feature's properties against each style rule in config.styles in order, using the first rule that matches.
+ * If no rules match, the feature is hidden. If no custom styles are configured, it uses the default theme.
+ *
+ * @param config The GeoJSON layer configuration containing the style rules
+ * @returns A function that takes a GeoJSON feature and returns its GeoJsonFeatureState
+ */
+export function getFeatureStateEvaluator(config: GeoJsonConfig): (feature: any, index: number) => GeoJsonFeatureState {
+  // Pre-build rule matching predicates to avoid re-parsing filter arrays on every feature
+  const styleRules = (config.styles || []).map(style => {
+    const evaluate = getSingleStyleEvaluator(config, style);
+    const filter = style.filter;
+
+    const matches = (props: Record<string, any>) => {
+      // If no filter property is configured, treat this as an unconditional catch-all rule
+      if (!filter?.prop || !filter.values?.length) {
+        return true;
+      }
+      const propValue = String(props[filter.prop] ?? '');
+      return filter.values.some(expectedValue => String(expectedValue) === propValue);
+    };
+
+    return { matches, evaluate };
+  });
+
+  const defaultEvaluator = getSingleStyleEvaluator(config, {
+    colourMode: 'basic',
+    colourConfig: { basicType: 'normal' },
+    opacity: 1,
+    isOpaque: false
+  });
+
+  const hiddenState: GeoJsonFeatureState = {
+    color: '#00267E',
+    fillColor: '#00267E',
+    strokeColor: '#00267E',
+    outlineColor: '#ffffff',
+    radius: 0,
+    strokeWidth: 0,
+    outlineWidth: 0,
+    opacity: 0,
+    fillOpacity: 0,
+    strokeOpacity: 0
+  };
+
+  return (feature: any, index: number) => {
+    const props = feature?.properties || {};
+
+    // Find the first rule whose filter matches the feature properties
+    const matchedRule = styleRules.find(rule => rule.matches(props));
+    if (matchedRule) {
+      return matchedRule.evaluate(feature, index);
+    }
+
+    // When style rules are defined but none matched, the feature is filtered out (hidden)
+    if (config.styles && config.styles.length > 0) {
+      return hiddenState;
+    }
+
+    // Default fallback when no custom styles are specified
+    return defaultEvaluator(feature, index);
+  };
+}
+
+/**
+ * Updates MapLibre feature states on a source for all features in the GeoJSON dataset.
+ */
+export function applyFeatureStates(
+  map: Map,
+  sourceId: string,
+  data: any,
+  config: GeoJsonConfig
+) {
+  if (!map || !map.getSource(sourceId) || !data?.features?.length) return;
+
+  const evaluator = getFeatureStateEvaluator(config);
+
+  data.features.forEach((feat: any, index: number) => {
+    const id = feat.id ?? index;
+    const state = evaluator(feat, index);
+    map.setFeatureState({ source: sourceId, id }, state);
+  });
+}
+
+/**
+ * Creates a colour evaluator function for spikes and custom layers.
+ */
+export function getColourEvaluator(config: GeoJsonConfig): (feature: any) => string {
+  const evaluator = getFeatureStateEvaluator(config);
+  return feature => evaluator(feature, 0).color;
+}
+
+const MIN_HEIGHT_JANK_FACTOR = 3000;
+
+/**
+ * Creates a high-performance height evaluator function for spikes.
+ */
+export function getHeightEvaluator(config: GeoJsonConfig): (feature: { hVal: number }) => number {
+  const spikeConfig = config.spike;
+  if (!spikeConfig?.heightProp) return () => 0;
+
+  const min = spikeConfig.min ?? 0;
+  const max = spikeConfig.max ?? 100;
+  const scalar = spikeConfig.scalar ?? 2000000;
+  const range = max - min || 1;
+
+  return feature => {
+    const val = feature.hVal;
+    const factor = Math.max(0, Math.min(1, (val - min) / range));
+    return Math.max(MIN_HEIGHT_JANK_FACTOR, factor * scalar);
+  };
+}

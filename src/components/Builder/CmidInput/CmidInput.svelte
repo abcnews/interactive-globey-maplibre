@@ -80,6 +80,9 @@
       {disabled}
       bind:value={draftValue}
       onkeydown={handleKeyDown}
+      onblur={() => {
+        if (isValid) handleLoad();
+      }}
     />
     <button
       type="button"

@@ -3,7 +3,7 @@
   import type * as maplibregl from 'maplibre-gl';
   import { safeFitBounds } from './utils';
 
-  import { addLayerWithZIndex, removeLayerWithZIndex, Z_INDEX_UI_OVERLAYS } from '../CustomGlobe/features/layerUtils';
+  import { addLayerWithZIndex, removeLayerWithZIndex, Z_INDEX_UI_OVERLAYS } from '../features';
 
   let {
     map,

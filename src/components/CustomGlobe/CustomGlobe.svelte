@@ -1,14 +1,13 @@
 <script lang="ts">
-  import PanZoomHandler from './features/PanZoom/PanZoomHandler.svelte';
-  import MapVectorHandler from './features/MapVectorHandler.svelte';
-  import MapCustomLabelHandler from './features/MapCustomLabelHandler.svelte';
-  import GeoJsonHandler from './features/GeoJson/GeoJsonHandler.svelte';
-  import ImageSourcesHandler from './features/ImageSourcesHandler.svelte';
-  import IconsHandler from './features/Icons/IconsHandler.svelte';
-  import type { DecodedObject } from '../../lib/marker';
-  import MapRasterHandler from './features/MapRasterHandler.svelte';
-  import ProjectionHandler from './features/ProjectionHandler.svelte';
-  import AttributionHandler from './features/AttributionHandler.svelte';
+  import PanZoomHandler from '../features/PanZoom/PanZoomHandler.svelte';
+  import MapVectorHandler from '../features/MapVector/MapVectorHandler.svelte';
+  import MapCustomLabelHandler from '../features/CustomLabels/MapCustomLabelHandler.svelte';
+  import GeoJsonHandler from '../features/GeoJson/GeoJsonHandler.svelte';
+  import ImageSourcesHandler from '../features/ImageSource/ImageSourcesHandler.svelte';
+  import IconsHandler from '../features/Icon/IconsHandler.svelte';
+  import MapRasterHandler from '../features/MapRaster/MapRasterHandler.svelte';
+  import ProjectionHandler from '../features/Projection/ProjectionHandler.svelte';
+  import AttributionHandler from '../features/Attribution/AttributionHandler.svelte';
   import { MAX_ZOOM } from '../../lib/constants';
   import { Map } from 'maplibre-gl';
   import 'maplibre-gl/dist/maplibre-gl.css';

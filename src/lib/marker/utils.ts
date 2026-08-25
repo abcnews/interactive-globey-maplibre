@@ -51,7 +51,9 @@ export interface MapLabelsObject {
   stateBoundaries?: boolean;
 }
 
-export const DEFAULT_MAP_LABELS: Record<string, boolean> = {
+import type { MapLabelsConfig } from './types.ts';
+
+export const DEFAULT_MAP_LABELS: MapLabelsConfig = {
   countriesMajor: true,
   countriesMedium: true,
   countriesMinor: true,
@@ -64,7 +66,7 @@ export const DEFAULT_MAP_LABELS: Record<string, boolean> = {
   stateBoundaries: false
 };
 
-export const DISABLED_MAP_LABELS: Record<string, boolean> = {
+export const DISABLED_MAP_LABELS: MapLabelsConfig = {
   countriesMajor: false,
   countriesMedium: false,
   countriesMinor: false,

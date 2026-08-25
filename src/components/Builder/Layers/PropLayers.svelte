@@ -1,39 +1,15 @@
 <script lang="ts">
   import type { Map as MapLibreMap } from 'maplibre-gl';
-  import type { DecodedObject, GeoJsonConfig, IconConfig, ImageSourceConfig, Label } from '../../../lib/marker';
-  import { hasMapLabels, DEFAULT_MAP_LABELS, DISABLED_MAP_LABELS } from '../../../lib/marker/utils';
+  import type { DecodedObject } from '../../../lib/marker';
   import {
-    Z_INDEX_GEOJSON,
+    layerFeatureRegistry,
     Z_INDEX_IMAGE_LAYERS,
-    Z_INDEX_BASE_LABELS,
-    Z_INDEX_CUSTOM_LABELS
-  } from '../../CustomGlobe/features/layerUtils';
+    type LayerItemDescriptor,
+    type LayerFeatureDefinition
+  } from '../../features';
   import { safeFitBounds } from '../utils';
   import PropList from '../PropList.svelte';
-  import GeoJsonConfigModal from '../GeoJSON/GeoJsonConfigModal.svelte';
-  import ImageSourceConfigModal from '../ImageSource/ImageSourceConfigModal.svelte';
-  import IconConfigModal from '../Icon/IconConfigModal.svelte';
-  import { Pencil, Trash, Plus, Image as ImageIcon, Map as MapIcon, ChatSquareText, PinMap } from 'svelte-bootstrap-icons';
-
-  export type LayerKind = 'geojson' | 'image' | 'labels' | 'icon';
-
-  const LAYER_ICONS: Record<LayerKind, typeof MapIcon> = {
-    geojson: MapIcon,
-    image: ImageIcon,
-    labels: ChatSquareText,
-    icon: PinMap
-  };
-
-  export interface LayerItem {
-    id: string;
-    kind: LayerKind;
-    name: string;
-    description: string;
-    zIndex: number;
-    data?: GeoJsonConfig | ImageSourceConfig | IconConfig | Label[];
-    onEdit?: () => void;
-    onDelete?: () => void;
-  }
+  import { Pencil, Trash, Plus } from 'svelte-bootstrap-icons';
 
   interface Props {
     /** Marker options decoded object bound to the builder. */
@@ -44,200 +20,152 @@
 
   let { options = $bindable(), map }: Props = $props();
 
-  /** The existing layer item currently being edited in a modal dialog. */
-  let editingItem = $state<LayerItem | null>(null);
-  /** The layer kind currently being added via an add modal. */
-  let isAdding = $state<LayerKind | null>(null);
-  /** Temporary empty config draft when creating a new layer. */
-  let newLayerDraft = $state<any>(null);
+  /** The item currently being edited in a modal dialog */
+  let editingItem = $state<{
+    feature: LayerFeatureDefinition<any>;
+    descriptor: LayerItemDescriptor<any>;
+    data: any;
+  } | null>(null);
+
+  /** Active interactive placement state (e.g. click-to-place icons) */
+  let activePlacement = $state<{
+    feature: LayerFeatureDefinition<any>;
+    prompt: string;
+    item: any;
+  } | null>(null);
+
   /** Whether the "Add Layer" dropdown menu is open. */
   let showAddMenu = $state(false);
-  /** Whether we are in click-to-place mode on the map for placing an icon */
-  let isPlacingIcon = $state(false);
 
-  function openEditModal(item: LayerItem) {
-    editingItem = item;
-    isAdding = null;
-    newLayerDraft = null;
+  function openEditModal(feature: LayerFeatureDefinition<any>, item: LayerItemDescriptor<any>) {
+    editingItem = {
+      feature,
+      descriptor: item,
+      data: item.data
+    };
     showAddMenu = false;
   }
 
   /** Visual layer stack ordered from top (highest z-index) to bottom */
-  const layers = $derived.by<LayerItem[]>(() => {
-    const geojson: LayerItem[] = (options.geoJson || []).map((item, idx) => {
-      const layerItem: LayerItem = {
-        id: `geojson-${item.id || item.cmid || idx}`,
-        kind: 'geojson',
-        name: item.type ? `${item.type.charAt(0).toUpperCase() + item.type.slice(1)}` : 'GeoJSON',
-        description: item.cmid ? `CMID: ${item.cmid}` : 'No CMID',
-        zIndex: item.zIndex ?? Z_INDEX_GEOJSON + idx * 0.1,
-        data: item,
-        onEdit: () => openEditModal(layerItem),
-        onDelete: () => {
-          options.geoJson = (options.geoJson || []).filter(entry => entry !== item);
-        }
-      };
-      return layerItem;
+  const layers = $derived.by(() => {
+    const list: (LayerItemDescriptor<any> & {
+      feature: LayerFeatureDefinition<any>;
+      onEdit?: () => void;
+      onDelete?: () => void;
+    })[] = [];
+
+    layerFeatureRegistry.forEach(feature => {
+      const items = feature.getItems(options);
+      items.forEach(item => {
+        list.push({
+          ...item,
+          feature,
+          onEdit: feature.ConfigModal ? () => openEditModal(feature, item) : undefined,
+          onDelete: () => feature.delete(options, item)
+        });
+      });
     });
 
-    const icons: LayerItem[] = (options.icons || []).map((item, idx) => {
-      const layerItem: LayerItem = {
-        id: `icon-${item.id || item.cmid || idx}`,
-        kind: 'icon',
-        name: item.cmid ? `Icon ${item.cmid}` : 'Icon',
-        description: item.coords ? `[${item.coords[0].toFixed(2)}, ${item.coords[1].toFixed(2)}]` : 'Point',
-        zIndex: item.zIndex ?? Z_INDEX_CUSTOM_LABELS + idx * 0.1,
-        data: item,
-        onEdit: () => openEditModal(layerItem),
-        onDelete: () => {
-          options.icons = (options.icons || []).filter(entry => entry !== item);
-        }
-      };
-      return layerItem;
-    });
-
-    const img: LayerItem[] = (options.imageSources || []).map((item, idx) => {
-      const layerItem: LayerItem = {
-        id: `img-${item.id || idx}`,
-        kind: 'image',
-        name: item.url ? item.url.split('?')[0].split('/').pop() || item.url : 'Image',
-        description: `Opacity: ${Math.round((item.opacity ?? 1) * 100)}%`,
-        zIndex: item.zIndex ?? Z_INDEX_IMAGE_LAYERS + idx * 0.1,
-        data: item,
-        onEdit: () => openEditModal(layerItem),
-        onDelete: () => {
-          options.imageSources = (options.imageSources || []).filter(entry => entry !== item);
-        }
-      };
-      return layerItem;
-    });
-
-    const builtInLabelsActive = hasMapLabels(options.mapLabels ?? DEFAULT_MAP_LABELS);
-    const builtInLabelItems: LayerItem[] = builtInLabelsActive
-      ? [
-          {
-            id: 'builtin-labels',
-            kind: 'labels',
-            name: 'Built-in Labels',
-            description: 'Countries, places & borders',
-            zIndex: options.mapLabelsZIndex ?? Z_INDEX_BASE_LABELS,
-            onDelete: () => {
-              options.mapLabels = { ...DISABLED_MAP_LABELS };
-            }
-          }
-        ]
-      : [];
-
-    const customLabelItems: LayerItem[] =
-      options.labels && options.labels.length > 0
-        ? [
-            {
-              id: 'custom-labels',
-              kind: 'labels',
-              name: 'Custom Labels',
-              description: `${options.labels.length} label${options.labels.length === 1 ? '' : 's'}`,
-              zIndex: options.labelsZIndex ?? Z_INDEX_CUSTOM_LABELS,
-              data: options.labels,
-              onDelete: () => (options.labels = [])
-            }
-          ]
-        : [];
-
-    return [...geojson, ...icons, ...img, ...builtInLabelItems, ...customLabelItems].sort((a, b) => b.zIndex - a.zIndex);
+    return list.sort((a, b) => b.zIndex - a.zIndex);
   });
 
-  function handleReorder(newItems: LayerItem[]) {
+  function handleReorder(newItems: typeof layers) {
     const total = newItems.length;
     const baseZ = Z_INDEX_IMAGE_LAYERS;
 
     newItems.forEach((item, idx) => {
       const assignedZ = baseZ + (total - 1 - idx) * 10;
-      if (item.kind === 'geojson' && item.data) {
-        (item.data as GeoJsonConfig).zIndex = assignedZ;
-      } else if (item.kind === 'icon' && item.data) {
-        (item.data as IconConfig).zIndex = assignedZ;
-      } else if (item.kind === 'image' && item.data) {
-        (item.data as ImageSourceConfig).zIndex = assignedZ;
-      } else if (item.id === 'custom-labels') {
-        options.labelsZIndex = assignedZ;
-      } else if (item.id === 'builtin-labels') {
-        options.mapLabelsZIndex = assignedZ;
-      }
+      item.feature.setZIndex(options, item, assignedZ);
     });
-
-    options.geoJson = newItems.filter(item => item.kind === 'geojson').map(item => item.data as GeoJsonConfig);
-    options.icons = newItems.filter(item => item.kind === 'icon').map(item => item.data as IconConfig);
-    options.imageSources = newItems.filter(item => item.kind === 'image').map(item => item.data as ImageSourceConfig);
   }
 
-  function addLayer(kind: LayerKind) {
+  function addLayer(feature: LayerFeatureDefinition<any>) {
     showAddMenu = false;
     editingItem = null;
 
-    const defaultZ = kind === 'geojson' ? Z_INDEX_GEOJSON : kind === 'icon' ? Z_INDEX_CUSTOM_LABELS : Z_INDEX_IMAGE_LAYERS;
-    const maxZ = layers.length > 0 ? Math.max(...layers.map(l => l.zIndex)) : defaultZ;
+    const maxZ = layers.length > 0 ? Math.max(...layers.map(l => l.zIndex)) + 10 : feature.defaultZIndex;
+    const newItem = feature.createDefault({ maxZIndex: maxZ, map });
 
-    if (kind === 'icon') {
-      newLayerDraft = { id: Date.now().toString(), coords: [0, 0], zIndex: maxZ + 10 };
-      isPlacingIcon = true;
+    if (feature.interactivePlacement) {
+      activePlacement = {
+        feature,
+        prompt: feature.interactivePlacement.prompt,
+        item: newItem
+      };
     } else {
-      isAdding = kind;
-      newLayerDraft = { id: Date.now().toString(), zIndex: maxZ + 10 };
+      feature.add(options, newItem);
+      if (feature.ConfigModal) {
+        openEditModal(feature, {
+          id: `${feature.kind}-${Date.now()}`,
+          kind: feature.kind,
+          name: feature.label,
+          description: '',
+          zIndex: maxZ,
+          data: newItem
+        });
+      }
     }
   }
 
-  function handleMapClickForIcon(e: any) {
-    if (!isPlacingIcon) return;
+  function handleMapClick(e: any) {
+    if (!activePlacement) return;
+    const { feature, item } = activePlacement;
     const coords: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-    newLayerDraft.coords = coords;
-    isPlacingIcon = false;
-    isAdding = 'icon';
+
+    feature.interactivePlacement?.onMapClick(coords, item);
+    feature.add(options, item);
+
+    const placementMaxZ = layers.length > 0 ? Math.max(...layers.map(l => l.zIndex)) + 10 : feature.defaultZIndex;
+
+    activePlacement = null;
+
+    if (feature.ConfigModal) {
+      openEditModal(feature, {
+        id: `${feature.kind}-${Date.now()}`,
+        kind: feature.kind,
+        name: feature.label,
+        description: '',
+        zIndex: placementMaxZ,
+        data: item
+      });
+    }
   }
 
   $effect(() => {
     if (!map) return;
 
-    if (isPlacingIcon) {
+    if (activePlacement) {
       map.getCanvas().style.cursor = 'crosshair';
-      map.on('click', handleMapClickForIcon);
+      map.on('click', handleMapClick);
     } else {
       map.getCanvas().style.cursor = '';
-      map.off('click', handleMapClickForIcon);
+      map.off('click', handleMapClick);
     }
 
     return () => {
-      map.off('click', handleMapClickForIcon);
+      map.off('click', handleMapClick);
       if (map.getCanvas()) map.getCanvas().style.cursor = '';
     };
   });
-
-  function addBuiltInLabels() {
-    showAddMenu = false;
-    options.mapLabels = { ...DEFAULT_MAP_LABELS };
-    const maxZ = layers.length > 0 ? Math.max(...layers.map(l => l.zIndex)) : Z_INDEX_BASE_LABELS;
-    options.mapLabelsZIndex = maxZ + 10;
-  }
 
   function handleClose(bounds?: [number, number][]) {
     if (bounds && map) {
       safeFitBounds(map, bounds, { padding: 50 });
     }
-
-    // If saving a new layer, append to options
-    if (isAdding && newLayerDraft) {
-      if (isAdding === 'geojson' && newLayerDraft.cmid) {
-        options.geoJson = [...(options.geoJson || []), newLayerDraft];
-      } else if (isAdding === 'icon' && newLayerDraft.cmid) {
-        options.icons = [...(options.icons || []), newLayerDraft];
-      } else if (isAdding === 'image' && newLayerDraft.url) {
-        options.imageSources = [...(options.imageSources || []), newLayerDraft];
+    // Clean up empty or invalid added item if no cmid or no url
+    if (editingItem) {
+      const { feature, descriptor, data } = editingItem;
+      const currentData = descriptor.data || data;
+      if (feature.kind === 'icon' && !currentData?.cmid) {
+        feature.delete(options, descriptor);
+      } else if (feature.kind === 'geojson' && !currentData?.cmid) {
+        feature.delete(options, descriptor);
+      } else if (feature.kind === 'image' && !currentData?.url) {
+        feature.delete(options, descriptor);
       }
     }
-
+    options = { ...options };
     editingItem = null;
-    isAdding = null;
-    newLayerDraft = null;
-    isPlacingIcon = false;
   }
 </script>
 
@@ -250,37 +178,30 @@
       </button>
       {#if showAddMenu}
         <div class="add-menu">
-          <button type="button" onclick={() => addLayer('geojson')}>
-            <MapIcon /> GeoJSON
-          </button>
-          <button type="button" onclick={() => addLayer('icon')}>
-            <PinMap /> Icon
-          </button>
-          <button type="button" onclick={() => addLayer('image')}>
-            <ImageIcon /> Image Overlay
-          </button>
-          {#if !hasMapLabels(options.mapLabels)}
-            <button type="button" onclick={addBuiltInLabels}>
-              <ChatSquareText /> Built-in Labels
-            </button>
-          {/if}
+          {#each layerFeatureRegistry as feature (feature.kind)}
+            {#if !feature.canAdd || feature.canAdd(options)}
+              <button type="button" onclick={() => addLayer(feature)}>
+                <feature.icon /> {feature.label}
+              </button>
+            {/if}
+          {/each}
         </div>
       {/if}
     </div>
   </legend>
 
-  {#if isPlacingIcon}
+  {#if activePlacement}
     <small style:display="block" style:margin-bottom="0.5rem" style:color="#64b5f6">
-      Click map to place icon...
+      {activePlacement.prompt}
     </small>
   {/if}
 
   {#if layers.length === 0}
-    <small>Click <code>+</code> to add a GeoJSON, Icon, or Image layer</small>
+    <small>Click <code>+</code> to add a layer</small>
   {:else}
     <PropList items={layers} onchange={handleReorder}>
-      {#snippet name(item: LayerItem)}
-        {@const Icon = LAYER_ICONS[item.kind]}
+      {#snippet name(item)}
+        {@const Icon = item.feature.icon}
         <span class="layer-name">
           {#if Icon}
             <Icon class="layer-icon" />
@@ -288,10 +209,10 @@
           <strong>{item.name}</strong>
         </span>
       {/snippet}
-      {#snippet description(item: LayerItem)}
+      {#snippet description(item)}
         <span class="layer-desc">{item.description}</span>
       {/snippet}
-      {#snippet actions(item: LayerItem)}
+      {#snippet actions(item)}
         {#if item.onEdit}
           <button class="btn-icon" aria-label="Edit" title="Edit" onclick={item.onEdit}>
             <Pencil />
@@ -306,31 +227,8 @@
     </PropList>
   {/if}
 
-  {#if isAdding === 'geojson'}
-    <GeoJsonConfigModal bind:config={newLayerDraft} onclose={handleClose} />
-  {:else if editingItem?.kind === 'geojson'}
-    {@const idx = options.geoJson?.indexOf(editingItem.data as GeoJsonConfig)}
-    {#if idx !== undefined && idx !== -1}
-      <GeoJsonConfigModal bind:config={options.geoJson![idx]} onclose={handleClose} />
-    {/if}
-  {/if}
-
-  {#if isAdding === 'icon'}
-    <IconConfigModal bind:config={newLayerDraft} onclose={handleClose} />
-  {:else if editingItem?.kind === 'icon'}
-    {@const idx = options.icons?.indexOf(editingItem.data as IconConfig)}
-    {#if idx !== undefined && idx !== -1}
-      <IconConfigModal bind:config={options.icons![idx]} onclose={handleClose} />
-    {/if}
-  {/if}
-
-  {#if isAdding === 'image'}
-    <ImageSourceConfigModal bind:config={newLayerDraft} onclose={handleClose} />
-  {:else if editingItem?.kind === 'image'}
-    {@const idx = options.imageSources?.indexOf(editingItem.data as ImageSourceConfig)}
-    {#if idx !== undefined && idx !== -1}
-      <ImageSourceConfigModal bind:config={options.imageSources![idx]} onclose={handleClose} />
-    {/if}
+  {#if editingItem?.feature.ConfigModal}
+    <editingItem.feature.ConfigModal bind:config={editingItem.data} onclose={handleClose} />
   {/if}
 </fieldset>
 
