@@ -3,7 +3,10 @@
   import { options } from './store';
   import type * as maplibregl from 'maplibre-gl';
   import PropBounds from './PropBounds.svelte';
-  import { QuestionCircle } from 'svelte-bootstrap-icons';
+  import { QuestionCircle, Search } from 'svelte-bootstrap-icons';
+  import { Modal } from '@abcnews/components-builder';
+  import GeoSearch from './GeoSearch/GeoSearch.svelte';
+  import { safeJumpTo } from './utils';
 
   import { disableMapAnimation } from '../../lib/stores';
 
@@ -21,6 +24,7 @@
 
   let inputValue = $state('');
   let inputElement: HTMLInputElement | undefined = $state();
+  let isSearchModalOpen = $state(false);
 
   const hasBounds = $derived(($options?.bounds?.length ?? 0) > 0);
 
@@ -68,18 +72,31 @@
   });
 
   function onGeoSelect(result: { name: string; coords: [number, number] }) {
-    // Zoom to location (zoom level 10 is usually a good city-level view as a starter)
-    update(result.coords, 10, true);
+    const zoom = $options.z === undefined || $options.z < 6 ? 8 : $options.z;
+    update(result.coords, zoom, true);
+
+    if (map) {
+      safeJumpTo(map, {
+        center: result.coords,
+        zoom,
+        padding: 50
+      });
+    }
 
     // Clear bounds as requested
     $options = {
       ...$options,
-      bounds: []
+      coords: result.coords,
+      z: zoom,
+      bounds: [],
+      fitGlobe: false
     };
     onBoundsChange?.([]);
+    onFitGlobeChange?.(false);
 
     // Switch to pan-zoom mode UI
     navMode = 'pan-zoom';
+    isSearchModalOpen = false;
   }
 
   // Sync store -> input
@@ -227,6 +244,15 @@
       <button
         class="btn-icon"
         type="button"
+        aria-label="Search location"
+        title="Search location"
+        onclick={() => (isSearchModalOpen = true)}
+      >
+        <Search />
+      </button>
+      <button
+        class="btn-icon"
+        type="button"
         aria-label="Help"
         title="Help"
         onclick={() =>
@@ -319,6 +345,14 @@
   </fieldset>
 </form>
 
+{#if isSearchModalOpen}
+  <Modal onClose={() => (isSearchModalOpen = false)} title="Search Location">
+    <div class="search-modal-content">
+      <GeoSearch onselect={onGeoSelect} />
+    </div>
+  </Modal>
+{/if}
+
 <style>
   legend {
     display: flex;
@@ -348,5 +382,15 @@
     font-size: 0.9rem;
     width: 5ch;
     text-align: right;
+  }
+
+  .search-modal-content {
+    width: 90vw;
+    max-width: 32rem;
+    min-height: 24rem;
+    display: flex;
+    flex-direction: column;
+    padding: 0.5rem 0;
+    box-sizing: border-box;
   }
 </style>

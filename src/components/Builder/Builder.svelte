@@ -8,8 +8,6 @@
   import PropCoord from './PropCoord.svelte';
   import PropBase from './PropBase/PropBase.svelte';
   import PropLayers from './Layers/PropLayers.svelte';
-  import GeoSearch from './GeoSearch/GeoSearch.svelte';
-  import { safeFlyTo, safeJumpTo } from './utils';
   import MarkerJson from './MarkerJson.svelte';
   import IframeUrl from './IframeUrl.svelte';
   import PropScreenshot from './PropScreenshotTool/PropScreenshot.svelte';
@@ -83,24 +81,6 @@
   {/if}
 
   {#if map && options}
-    <fieldset class="geo-search-section">
-      <legend>Search Location</legend>
-      <GeoSearch
-        onselect={val => {
-          options.coords = val.coords;
-          if (options.z === undefined || options.z < 6) {
-            options.z = 8;
-          }
-          if (map) {
-            safeJumpTo(map, {
-              center: val.coords,
-              zoom: options.z,
-              padding: 50
-            });
-          }
-        }}
-      />
-    </fieldset>
     <PropBase {map} bind:options />
     <PropCoord
       {map}

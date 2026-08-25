@@ -8,15 +8,24 @@
     onselect?: (value: { name: string; coords: [number, number] }) => void;
     /** Optional placeholder text */
     placeholder?: string;
+    /** Whether to automatically focus the search input */
+    autofocus?: boolean;
   }
 
-  let { onselect, placeholder = 'Search location (e.g. Sydney, Tokyo)...' }: Props = $props();
+  let { onselect, placeholder = 'Search location (e.g. Sydney, Tokyo)...', autofocus = true }: Props = $props();
 
   let searchTerm = $state('');
   let isSearching = $state(false);
   let results = $state<GeoNameResult[]>([]);
   let isDropdownOpen = $state(false);
   let containerEl = $state<HTMLDivElement>();
+  let inputEl = $state<HTMLInputElement>();
+
+  $effect(() => {
+    if (autofocus && inputEl) {
+      inputEl.focus();
+    }
+  });
 
   async function performSearch(keyword: string) {
     if (!keyword.trim()) {
@@ -83,6 +92,8 @@
     <Search class="search-icon" />
     <input
       type="text"
+      bind:this={inputEl}
+      {autofocus}
       value={searchTerm}
       oninput={handleInput}
       onfocus={() => {
@@ -133,6 +144,9 @@
   .geo-search-container {
     position: relative;
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
   }
 
   .input-wrapper {
@@ -140,6 +154,7 @@
     display: flex;
     align-items: center;
     width: 100%;
+    box-sizing: border-box;
   }
 
   :global(.search-icon) {
@@ -152,6 +167,7 @@
 
   .geo-search-input {
     width: 100%;
+    box-sizing: border-box;
     padding: 0.45rem 0.6rem 0.45rem 2rem;
     background: var(--background-alt, #2c2c2f);
     border: 1px solid var(--border, rgba(122, 123, 135, 0.5));
@@ -176,15 +192,14 @@
   }
 
   .results-dropdown {
-    position: absolute;
-    top: calc(100% + 0.25rem);
-    left: 0;
-    right: 0;
+    position: static;
+    margin-top: 0.5rem;
+    width: 100%;
+    box-sizing: border-box;
     background: var(--background-alt, #2c2c2f);
     border: 1px solid var(--border, rgba(122, 123, 135, 0.5));
     border-radius: 4px;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-    z-index: 200;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     max-height: 260px;
     overflow-y: auto;
     display: flex;
