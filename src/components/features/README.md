@@ -64,6 +64,7 @@ If the feature is configurable by the user in the builder interface, create a mo
 - Modal: [Icon/BuilderIconConfigModal.svelte](./Icon/BuilderIconConfigModal.svelte)
 - Multi-Tab Modal: [GeoJson/BuilderGeoJsonConfigModal.svelte](./GeoJson/BuilderGeoJsonConfigModal.svelte)
 - Import-driven Modal: [ImageSource/BuilderImageSourceConfigModal.svelte](./ImageSource/BuilderImageSourceConfigModal.svelte)
+- Toggle-Grid Modal: [MapLabels/BuilderMapLabelsConfigModal.svelte](./MapLabels/BuilderMapLabelsConfigModal.svelte)
 
 ---
 

@@ -128,18 +128,27 @@
     if (!mapRoot.map) return;
     const map = mapRoot.map;
 
-    const currentLabels = $state.snapshot(labels);
+    const countriesMajor = labels?.countriesMajor ?? true;
+    const countriesMedium = labels?.countriesMedium ?? true;
+    const countriesMinor = labels?.countriesMinor ?? true;
+    const continents = labels?.continents ?? false;
+    const states = labels?.states ?? false;
+    const cities = labels?.cities ?? false;
+    const towns = labels?.towns ?? false;
+    const oceans = labels?.oceans ?? false;
+    const nationalBoundaries = labels?.nationalBoundaries ?? true;
+    const stateBoundaries = labels?.stateBoundaries ?? false;
 
     const syncVisibility = () => {
       // COUNTRIES
       const countryLayers: Record<string, boolean> = {
-        'place-country-1': currentLabels.countriesMajor,
-        'place-country-rank1-symbol': currentLabels.countriesMajor,
-        'place-country-2': currentLabels.countriesMedium,
-        'place-country-rank2-symbol': currentLabels.countriesMedium,
-        'place-country-3': currentLabels.countriesMinor,
-        'place-country-rank>=3-symbol': currentLabels.countriesMinor,
-        'place-country-other': currentLabels.countriesMinor
+        'place-country-1': countriesMajor,
+        'place-country-rank1-symbol': countriesMajor,
+        'place-country-2': countriesMedium,
+        'place-country-rank2-symbol': countriesMedium,
+        'place-country-3': countriesMinor,
+        'place-country-rank>=3-symbol': countriesMinor,
+        'place-country-other': countriesMinor
       };
 
       Object.entries(countryLayers).forEach(([id, isVisible]) => {
@@ -151,14 +160,14 @@
       // CONTINENTS
       ['place-continent', 'place-continent-symbol'].forEach(id => {
         if (map.getLayer(id)) {
-          map.setLayoutProperty(id, 'visibility', currentLabels.continents ? 'visible' : 'none');
+          map.setLayoutProperty(id, 'visibility', continents ? 'visible' : 'none');
         }
       });
 
       // STATES
       ['place-state', 'place-state-symbol', 'place-state-AU-symbol'].forEach(id => {
         if (map.getLayer(id)) {
-          map.setLayoutProperty(id, 'visibility', currentLabels.states ? 'visible' : 'none');
+          map.setLayoutProperty(id, 'visibility', states ? 'visible' : 'none');
         }
       });
 
@@ -174,7 +183,7 @@
         'place-city-capital_state-symbol'
       ].forEach(id => {
         if (map.getLayer(id)) {
-          map.setLayoutProperty(id, 'visibility', currentLabels.cities ? 'visible' : 'none');
+          map.setLayoutProperty(id, 'visibility', cities ? 'visible' : 'none');
         }
       });
 
@@ -190,7 +199,7 @@
         'place-other'
       ].forEach(id => {
         if (map.getLayer(id)) {
-          map.setLayoutProperty(id, 'visibility', currentLabels.towns ? 'visible' : 'none');
+          map.setLayoutProperty(id, 'visibility', towns ? 'visible' : 'none');
         }
       });
 
@@ -209,7 +218,7 @@
         'waterway-name-symbol'
       ].forEach(id => {
         if (map.getLayer(id)) {
-          map.setLayoutProperty(id, 'visibility', currentLabels.oceans ? 'visible' : 'none');
+          map.setLayoutProperty(id, 'visibility', oceans ? 'visible' : 'none');
         }
       });
 
@@ -222,13 +231,13 @@
 
       // BOUNDARIES
       if (map.getLayer('boundary-land-level-2')) {
-        map.setLayoutProperty('boundary-land-level-2', 'visibility', currentLabels.nationalBoundaries ? 'visible' : 'none');
+        map.setLayoutProperty('boundary-land-level-2', 'visibility', nationalBoundaries ? 'visible' : 'none');
       }
       if (map.getLayer('boundary-land-disputed')) {
-        map.setLayoutProperty('boundary-land-disputed', 'visibility', currentLabels.nationalBoundaries ? 'visible' : 'none');
+        map.setLayoutProperty('boundary-land-disputed', 'visibility', nationalBoundaries ? 'visible' : 'none');
       }
       if (map.getLayer('boundary-land-level-4')) {
-        map.setLayoutProperty('boundary-land-level-4', 'visibility', currentLabels.stateBoundaries ? 'visible' : 'none');
+        map.setLayoutProperty('boundary-land-level-4', 'visibility', stateBoundaries ? 'visible' : 'none');
       }
       if (map.getLayer('boundary-land-level-6')) {
         map.setLayoutProperty('boundary-land-level-6', 'visibility', 'none');

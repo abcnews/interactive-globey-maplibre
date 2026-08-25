@@ -21,17 +21,28 @@
     $optionsStore = options;
   });
 
+  let lastEncodedHash = '';
+
   $effect(() => {
     if (!options) {
       return;
     }
     markerSchema.encode(options).then(hash => {
-      window.location.hash = hash || '';
+      const newHash = hash || '';
+      if (window.location.hash.slice(1) !== newHash) {
+        lastEncodedHash = newHash;
+        window.location.hash = newHash;
+      }
     });
   });
 
   async function updateHash() {
-    const urlOptions = await markerSchema.decode(window.location.hash.slice(1));
+    const currentHash = window.location.hash.slice(1);
+    if (currentHash && currentHash === lastEncodedHash) {
+      return;
+    }
+    lastEncodedHash = currentHash;
+    const urlOptions = await markerSchema.decode(currentHash);
     options = urlOptions;
   }
   onMount(updateHash);
