@@ -44,6 +44,9 @@ export const BREAKPOINT_WIDTHS: Record<string, number> = {
 /** In-memory document cache to avoid duplicate network requests for the same CMID */
 const documentCache = new Map<number, Promise<any>>();
 
+/** In-memory image state cache to immediately serve resolved images on subsequent calls */
+const imageStateCache = new Map<string, ImageState>();
+
 /**
  * Fetches a CoreMedia document via Terminus with caching and error handling.
  */
@@ -101,7 +104,10 @@ export function loadImage(cmid: number | string, options: LoadImageOptions = {})
   const { targetWidth, preferredRatio, includeAlt = false, apiKey } = options;
   const numericCmid = typeof cmid === 'string' ? Number(cmid) : cmid;
 
-  let state: ImageState = { status: 'loading' };
+  const cacheKey = `${numericCmid}:${targetWidth || ''}:${preferredRatio || ''}:${includeAlt}:${apiKey || ''}`;
+  const cached = numericCmid ? imageStateCache.get(cacheKey) : undefined;
+
+  let state: ImageState = cached || { status: 'loading' };
   const subscribers = new Set<Subscriber<ImageState>>();
 
   const notify = () => {
@@ -110,10 +116,15 @@ export function loadImage(cmid: number | string, options: LoadImageOptions = {})
 
   const setState = (nextState: ImageState) => {
     state = nextState;
+    if (nextState.status === 'loaded') {
+      imageStateCache.set(cacheKey, nextState);
+    }
     notify();
   };
 
-  if (!numericCmid || isNaN(numericCmid)) {
+  if (cached && cached.status === 'loaded') {
+    // Already cached and loaded, no further fetch needed
+  } else if (!numericCmid || isNaN(numericCmid)) {
     state = {
       status: 'error',
       error: new Error(`Invalid CMID provided: ${cmid}`)

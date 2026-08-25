@@ -11,5 +11,6 @@ MapLibre GL JS renders layers strictly by array index, which causes stacking rac
 - **Multi-part layers and outlines:** Use `SUB_LAYER_OUTLINE_OFFSET` (0.001) so that outlines/fills sit beneath their parent stroke/casing (e.g. `zIndex - SUB_LAYER_OUTLINE_OFFSET`).
 - **Dynamic reordering:** Call `setLayerZIndex(map, layerId, newZIndex)` to restack an existing layer in real time without removing and re-adding it.
 - **Always clean up on unmount:** Invoke `removeLayerWithZIndex(map, layerId)` in component return/destroy cleanup functions to prevent stale entries in the registry.
+- **Prevent layer flashing/churn:** Use stable `{#each}` keys (`item.id || item.cmid || index`) and update coordinates/properties in place (`source.setData()`, `setPaintProperty()`) rather than re-mounting components or re-creating sources/layers on state changes.
 - **Unindexed layers:** If `zIndex` is `undefined`, the layer is ignored in Z-Index calculations and added with normal MapLibre behaviour.
 - **Reference and documentation:** See [layerManager.ts](../../src/components/CustomGlobe/features/layerManager.ts) for constants and implementation, and [MAPLIBRE_LAYERS.md](../../MAPLIBRE_LAYERS.md) for rendering engine background.

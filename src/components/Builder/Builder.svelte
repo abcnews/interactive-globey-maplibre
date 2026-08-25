@@ -13,7 +13,6 @@
   import IframeUrl from './IframeUrl.svelte';
   import PropScreenshot from './PropScreenshotTool/PropScreenshot.svelte';
   import Favicon from './Favicon/Favicon.svelte';
-  import { X } from 'svelte-bootstrap-icons';
 
   let options = $state<DecodedObject>({});
   let map = $state<maplibregl.Map>();

@@ -9,6 +9,7 @@
   import PropGeoJsonHeight from './PropGeoJsonHeight.svelte';
   import VerticalTabs from '../shared/VerticalTabs.svelte';
   import Collapsible from '../shared/Collapsible.svelte';
+  import CmidInput from '../CmidInput/CmidInput.svelte';
   import { ArrowUp, ArrowDown, Trash } from 'svelte-bootstrap-icons';
   import { untrack } from 'svelte';
 
@@ -247,18 +248,12 @@
             (<small class="stat">{featureCount} features</small>)
           {/if}</legend
         >
-        <label for="gj-cmid">CMID</label>
-        <input
+        <CmidInput
           id="gj-cmid"
-          type="text"
-          inputmode="numeric"
-          pattern="[0-9]*"
-          value={config.cmid || ''}
-          oninput={(e) => {
-            const val = e.currentTarget.value.trim();
-            config.cmid = val === '' ? 0 : Number(val);
-          }}
+          label="CMID"
           placeholder="e.g. 12345678"
+          bind:value={config.cmid}
+          loading={status === 'loading'}
         />
 
         {#if status === 'loading'}

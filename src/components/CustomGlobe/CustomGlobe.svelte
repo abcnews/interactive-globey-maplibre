@@ -4,6 +4,7 @@
   import MapCustomLabelHandler from './features/MapCustomLabelHandler.svelte';
   import GeoJsonHandler from './features/GeoJson/GeoJsonHandler.svelte';
   import ImageSourcesHandler from './features/ImageSourcesHandler.svelte';
+  import IconsHandler from './features/Icons/IconsHandler.svelte';
   import type { DecodedObject } from '../../lib/marker';
   import MapRasterHandler from './features/MapRasterHandler.svelte';
   import ProjectionHandler from './features/ProjectionHandler.svelte';
@@ -114,6 +115,7 @@
 
       <GeoJsonHandler config={options.geoJson} />
       <ImageSourcesHandler config={options.imageSources} geoJsonConfig={options.geoJson} />
+      <IconsHandler config={options.icons} />
       {@render children?.()}
     {/if}
   </div>

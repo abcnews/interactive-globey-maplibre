@@ -288,6 +288,27 @@ describe('marker codecs', () => {
       assert.strictEqual(decoded.imageSources![0].zIndex, 300);
     });
 
+    it('should round-trip icons within the full marker schema', async () => {
+      const input: DecodedObject = {
+        icons: [
+          {
+            id: 'icon-1',
+            cmid: 106753230,
+            coords: [151.2093, -33.8688],
+            zIndex: 450
+          }
+        ]
+      };
+      const fragment = await markerSchema.encode(input);
+      const decoded = await markerSchema.decode(fragment);
+      assert.strictEqual(decoded.icons?.length, 1);
+      assert.strictEqual(decoded.icons![0].id, 'icon-1');
+      assert.strictEqual(decoded.icons![0].cmid, 106753230);
+      assert.ok(Math.abs(decoded.icons![0].coords[0] - 151.2093) < 0.01);
+      assert.ok(Math.abs(decoded.icons![0].coords[1] - -33.8688) < 0.01);
+      assert.strictEqual(decoded.icons![0].zIndex, 450);
+    });
+
     it('should filter out invalid preview URLs and zero CMIDs during encode', async () => {
       const input: DecodedObject = {
         geoJson: [

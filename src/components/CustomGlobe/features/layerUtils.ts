@@ -38,6 +38,20 @@ export function getImageLayerId(config: ImageSourceConfig): string {
 }
 
 /**
+ * Generates a source ID for an icon.
+ */
+export function getIconSourceId(idOrCmid: number | string | undefined): string {
+  return `icon-source-${idOrCmid || 'unknown'}`;
+}
+
+/**
+ * Generates a layer ID for an icon symbol layer.
+ */
+export function getIconLayerId(idOrCmid: number | string | undefined): string {
+  return `icon-layer-${idOrCmid || 'unknown'}`;
+}
+
+/**
  * Finds the ID of the first label (symbol) layer in the map's style.
  */
 export function getLabelAnchor(map: maplibregl.Map): string | undefined {

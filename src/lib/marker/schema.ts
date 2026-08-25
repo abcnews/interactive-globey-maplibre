@@ -179,6 +179,16 @@ export const labelSchema = object({
 }).asArray();
 
 /**
+ * Icon item schema for MapLibre symbol markers.
+ */
+export const iconItemSchema = object({
+  id: string().key('id').optional(),
+  cmid: decimal().key('c'),
+  coords: coordsCodec.key('coords'),
+  zIndex: decimal(2).key('z').optional()
+}).asArray();
+
+/**
  * Image source item schema.
  */
 export const imageSourceItemSchema = object({
@@ -239,7 +249,8 @@ export const markerSchema = object({
     .transform(
       (items: any[]) =>
         items?.filter(item => {
-          const id = Array.isArray(item) ? item[0] : item?.cmid ?? item?.c;
+          if (!item) return false;
+          const id = typeof item.cmid === 'number' ? item.cmid : item.c;
           return typeof id === 'number' ? id > 0 : Boolean(id && !isNaN(Number(id)) && Number(id) > 0);
         }) ?? [],
       (items: any) => items
@@ -247,9 +258,27 @@ export const markerSchema = object({
     .asBase36()
     .key('gj')
     .default([]),
+  icons: array(iconItemSchema)
+    .transform(
+      (items: any[]) =>
+        items?.filter(item => {
+          if (!item) return false;
+          const id = Array.isArray(item) ? item[1] : item?.cmid ?? item?.c;
+          return typeof id === 'number' ? id > 0 : Boolean(id && !isNaN(Number(id)) && Number(id) > 0);
+        }) ?? [],
+      (items: any) => items
+    )
+    .asBase36()
+    .key('ic')
+    .default([]),
   imageSources: array(imageSourceItemSchema)
     .transform(
-      (items: any[]) => items?.filter(item => isValidUrl(Array.isArray(item) ? item[1] : item?.url || item?.u)) ?? [],
+      (items: any[]) =>
+        items?.filter(item => {
+          if (!item) return false;
+          const url = item.url || item.u;
+          return isValidUrl(url);
+        }) ?? [],
       (items: any) => items
     )
     .asBase36()
