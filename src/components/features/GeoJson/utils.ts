@@ -1,4 +1,5 @@
 import type { Map } from 'maplibre-gl';
+import { feature } from 'topojson-client';
 import {
   getDivergentContinuousPaletteInterpolator,
   SequentialPalette,
@@ -6,11 +7,66 @@ import {
   ColourMode
 } from '@abcnews/palette';
 import { interpolateColour, getCustomPaletteInterpolator } from '../../../lib/colours.ts';
+import { fetchDownloadObject } from '../../../lib/fetchDownloadObject.ts';
+import { isValidUrl } from '../../../lib/marker/utils.ts';
 import type { GeoJsonConfig, GeoJsonStyleConfig } from '../../../lib/marker';
 import { getSequentialInterpolator } from '../../../lib/sequentialPalette.ts';
 import { THEMES } from './themes.ts';
 
 export { generateGeoJsonSourceId as generateId, getLabelAnchor } from '../layers/layerUtils.ts';
+
+/**
+ * Fetches and normalizes GeoJSON or TopoJSON data from either a CMID or a URL.
+ *
+ * @param source Object containing either a cmid (number or string) or a url (string)
+ * @returns GeoJSON feature collection or geometry
+ */
+export async function fetchGeoJsonData(source: { cmid?: number | string; url?: string }): Promise<any> {
+  const { cmid, url } = source;
+  let rawData: any;
+
+  if (url) {
+    if (!isValidUrl(url)) {
+      throw new Error(`Invalid or preview URL provided: ${url}`);
+    }
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch GeoJSON from ${url}: ${res.status}`);
+    }
+    rawData = await res.json();
+  } else if (cmid) {
+    const id = typeof cmid === 'string' ? Number(cmid) : cmid;
+    if (!id || isNaN(id) || id <= 0) {
+      throw new Error(`Invalid CMID provided: ${cmid}`);
+    }
+    rawData = await fetchDownloadObject(id);
+  } else {
+    throw new Error('Neither CMID nor URL provided for GeoJSON source');
+  }
+
+  let geojson: any = rawData;
+  if (rawData && rawData.type === 'Topology' && rawData.objects) {
+    const key = Object.keys(rawData.objects)[0];
+    if (key) {
+      geojson = feature(rawData, rawData.objects[key]);
+    }
+  }
+
+  // Ensure every feature has a defined ID for MapLibre setFeatureState
+  if (geojson && geojson.type === 'FeatureCollection' && Array.isArray(geojson.features)) {
+    geojson.features.forEach((f: any, index: number) => {
+      if (f.id === undefined || f.id === null) {
+        f.id = index;
+      }
+    });
+  } else if (geojson && geojson.type === 'Feature') {
+    if (geojson.id === undefined || geojson.id === null) {
+      geojson.id = 0;
+    }
+  }
+
+  return geojson;
+}
 
 /** Earth equatorial circumference in kilometres */
 export const EARTH_CIRCUMFERENCE_KM = 40075;

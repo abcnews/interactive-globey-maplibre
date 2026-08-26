@@ -1,4 +1,4 @@
-import { describe, it, expect, assert } from 'vitest';
+import { describe, it, expect, assert, vi, afterEach } from 'vitest';
 import {
   generateId,
   getFeatureStateEvaluator,
@@ -6,6 +6,7 @@ import {
   getHeightEvaluator,
   getPaletteInterpolator,
   getKilometreZoomScaleExpression,
+  fetchGeoJsonData,
   EARTH_CIRCUMFERENCE_KM,
   TILE_SIZE_PX
 } from './utils.ts';
@@ -259,6 +260,73 @@ describe('GeoJson Utils & Feature State Evaluators', () => {
       const heightEvaluator = getHeightEvaluator(config);
       const h50 = heightEvaluator({ hVal: 50 });
       assert.strictEqual(h50, 50000);
+    });
+  });
+
+  describe('fetchGeoJsonData', () => {
+    const originalFetch = globalThis.fetch;
+
+    afterEach(() => {
+      globalThis.fetch = originalFetch;
+      vi.restoreAllMocks();
+    });
+
+    it('should throw error when neither CMID nor URL is provided', async () => {
+      await expect(fetchGeoJsonData({})).rejects.toThrow('Neither CMID nor URL provided');
+    });
+
+    it('should throw error for preview URLs', async () => {
+      await expect(
+        fetchGeoJsonData({ url: 'https://preview.wcms.abc-cdn.net.au/data.json' })
+      ).rejects.toThrow('Invalid or preview URL provided');
+    });
+
+    it('should fetch GeoJSON from valid URL and assign feature IDs if missing', async () => {
+      const mockGeoJson = {
+        type: 'FeatureCollection',
+        features: [
+          { type: 'Feature', geometry: { type: 'Point', coordinates: [151.2, -33.8] }, properties: { name: 'Sydney' } },
+          { id: 'custom-id', type: 'Feature', geometry: { type: 'Point', coordinates: [144.9, -37.8] }, properties: { name: 'Melbourne' } }
+        ]
+      };
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockGeoJson
+      });
+
+      const result = await fetchGeoJsonData({ url: 'https://live-production.wcms.abc-cdn.net.au/cities.geojson' });
+      assert.strictEqual(result.type, 'FeatureCollection');
+      assert.strictEqual(result.features.length, 2);
+      assert.strictEqual(result.features[0].id, 0);
+      assert.strictEqual(result.features[1].id, 'custom-id');
+    });
+
+    it('should convert TopoJSON to GeoJSON when fetched from URL', async () => {
+      const mockTopoJson = {
+        type: 'Topology',
+        objects: {
+          collection: {
+            type: 'GeometryCollection',
+            geometries: [
+              { type: 'Point', coordinates: [151.2, -33.8], properties: { name: 'Point A' } }
+            ]
+          }
+        },
+        arcs: [],
+        transform: { scale: [1, 1], translate: [0, 0] }
+      };
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockTopoJson
+      });
+
+      const result = await fetchGeoJsonData({ url: 'https://live-production.wcms.abc-cdn.net.au/map.topojson' });
+      assert.strictEqual(result.type, 'FeatureCollection');
+      assert.strictEqual(result.features.length, 1);
+      assert.strictEqual(result.features[0].properties.name, 'Point A');
+      assert.strictEqual(result.features[0].id, 0);
     });
   });
 });

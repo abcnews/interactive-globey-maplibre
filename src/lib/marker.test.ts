@@ -309,6 +309,29 @@ describe('marker codecs', () => {
       assert.strictEqual(decoded.icons![0].zIndex, 450);
     });
 
+    it('should round-trip GeoJSON layers with URL sources', async () => {
+      const input: DecodedObject = {
+        geoJson: [
+          {
+            id: 'gj-url-1',
+            url: 'https://live-production.wcms.abc-cdn.net.au/data/places.geojson',
+            type: 'points',
+            zIndex: 420,
+            styles: [{ colourMode: 'basic', opacity: 0.9 }]
+          }
+        ]
+      };
+
+      const fragment = await markerSchema.encode(input);
+      assert.ok(/^[a-z0-9]*$/i.test(fragment), `Fragment contains non-alphanumeric characters: ${fragment}`);
+      const decoded = await markerSchema.decode(fragment);
+      assert.strictEqual(decoded.geoJson?.length, 1);
+      assert.strictEqual(decoded.geoJson![0].id, 'gj-url-1');
+      assert.strictEqual(decoded.geoJson![0].url, 'https://live-production.wcms.abc-cdn.net.au/data/places.geojson');
+      assert.strictEqual(decoded.geoJson![0].type, 'points');
+      assert.strictEqual(decoded.geoJson![0].zIndex, 420);
+    });
+
     it('should filter out invalid preview URLs and zero CMIDs during encode', async () => {
       const input: DecodedObject = {
         geoJson: [
@@ -320,6 +343,16 @@ describe('marker codecs', () => {
           {
             cmid: 0,
             type: 'areas',
+            styles: [{ colourMode: 'simple', opacity: 1, isOpaque: false }]
+          },
+          {
+            url: 'https://preview-production.wcms.abc-cdn.net.au/invalid.geojson',
+            type: 'lines',
+            styles: [{ colourMode: 'simple', opacity: 1, isOpaque: false }]
+          },
+          {
+            url: 'https://live-production.wcms.abc-cdn.net.au/valid.geojson',
+            type: 'lines',
             styles: [{ colourMode: 'simple', opacity: 1, isOpaque: false }]
           }
         ],
@@ -333,8 +366,9 @@ describe('marker codecs', () => {
       };
       const fragment = await markerSchema.encode(input);
       const decoded = await markerSchema.decode(fragment);
-      assert.strictEqual(decoded.geoJson?.length, 1);
+      assert.strictEqual(decoded.geoJson?.length, 2);
       assert.strictEqual(decoded.geoJson![0].cmid, 12345678);
+      assert.strictEqual(decoded.geoJson![1].url, 'https://live-production.wcms.abc-cdn.net.au/valid.geojson');
       assert.strictEqual(decoded.imageSources?.length, 0);
     });
   });

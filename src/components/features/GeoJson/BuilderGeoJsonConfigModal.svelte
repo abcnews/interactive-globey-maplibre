@@ -1,84 +1,111 @@
 <script lang="ts">
   import { Modal } from '@abcnews/components-builder';
   import type { GeoJsonConfig } from '../../../lib/marker';
-  import { fetchDownloadObject } from '../../../lib/fetchDownloadObject.ts';
-  import { feature } from 'topojson-client';
+  import { fetchGeoJsonData } from './utils.ts';
+  import { isValidUrl } from '../../../lib/marker/utils.ts';
   import BuilderPropGeoJsonFilter from './BuilderPropGeoJsonFilter.svelte';
   import BuilderPropGeoJsonColour from './BuilderPropGeoJsonColour.svelte';
   import BuilderPropGeoJsonSize from './BuilderPropGeoJsonSize.svelte';
   import BuilderPropGeoJsonHeight from './BuilderPropGeoJsonHeight.svelte';
   import VerticalTabs from '../../Builder/shared/VerticalTabs.svelte';
   import Collapsible from '../../Builder/shared/Collapsible.svelte';
-  import CmidInput from '../../Builder/CmidInput/CmidInput.svelte';
   import { ArrowUp, ArrowDown, Trash } from 'svelte-bootstrap-icons';
   import { untrack } from 'svelte';
 
-  let {
-    config: initialConfig = $bindable(),
-    onclose
-  }: {
+  interface Props {
+    /** The GeoJsonConfig object being edited or drafted */
     config: GeoJsonConfig;
+    /** Callback fired when the modal requests to close */
     onclose?: (bounds?: [number, number][]) => void;
-  } = $props();
+  }
+
+  let { config = $bindable(), onclose }: Props = $props();
 
   let activeTab = $state<'config' | 'style'>('config');
 
-  let config = $state<GeoJsonConfig>(
+  let rawSourceInput = $state<string>(
     untrack(() => {
-      const snap = $state.snapshot(initialConfig) || ({} as any);
+      const snap = $state.snapshot(config);
+      return snap?.url ? snap.url : (snap?.cmid ? String(snap.cmid) : '');
+    })
+  );
+
+  let draftConfig = $state<GeoJsonConfig>(
+    untrack(() => {
+      const snap = $state.snapshot(config) || ({} as any);
       return {
         ...snap,
         type: snap.type ?? 'areas',
         colourMode: snap.colourMode ?? 'simple',
-        cmid: snap.cmid ? snap.cmid : ('' as any)
+        cmid: snap.cmid ? snap.cmid : undefined,
+        url: snap.url ?? undefined
       };
     })
   );
   let status = $state<'no-data' | 'loading' | 'loaded' | 'error'>(
-    untrack(() => ($state.snapshot(initialConfig)?.cmid ? 'loading' : 'no-data'))
+    untrack(() => {
+      const snap = $state.snapshot(config);
+      return snap?.cmid || snap?.url ? 'loading' : 'no-data';
+    })
   );
   let errorMessage = $state<string | undefined>();
   let properties = $state<string[]>([]);
   let featureCount = $state(0);
   let rawFeatures = $state<any[]>([]);
-  let lastCmid = 0;
+  let lastSourceKey = '';
 
-  async function fetchAndParse(cmid: number) {
-    if (!cmid || isNaN(cmid) || cmid <= 0) {
+  function isUrlInput(val: string): boolean {
+    const trimmed = val.trim();
+    if (!trimmed) return false;
+    return (
+      /^https?:\/\//i.test(trimmed) ||
+      trimmed.startsWith('/') ||
+      trimmed.includes('/') ||
+      /\.(geojson|json|topojson)(\?.*)?$/i.test(trimmed) ||
+      isNaN(Number(trimmed))
+    );
+  }
+
+  async function fetchAndParse(source: { cmid?: number; url?: string }) {
+    console.log('[BuilderGeoJsonConfigModal fetchAndParse:start]', source);
+    if (source.cmid && (isNaN(source.cmid) || source.cmid <= 0)) {
       status = 'no-data';
       return;
     }
+    if (source.url && !isValidUrl(source.url)) {
+      status = 'no-data';
+      return;
+    }
+    if (!source.cmid && !source.url) {
+      status = 'no-data';
+      return;
+    }
+
     status = 'loading';
     errorMessage = undefined;
     try {
-      const data = await fetchDownloadObject(cmid);
-
-      let geojson: any = data;
-      if (data.type === 'Topology') {
-        const key = Object.keys(data.objects)[0];
-        if (key) {
-          geojson = feature(data, data.objects[key]);
-        }
-      }
+      const geojson = await fetchGeoJsonData(source);
+      console.log('[BuilderGeoJsonConfigModal fetchAndParse:success]', { source, geojsonType: geojson?.type, featuresLength: geojson?.features?.length });
 
       // Analyze properties
       const propsSet = new Set<string>();
-      let count = 0;
       let features: any[] = [];
-      if (geojson.features) {
+      if (geojson.features && Array.isArray(geojson.features)) {
         features = geojson.features;
-        count = features.length;
-        features.forEach((f: any) => {
-          if (f.properties) {
-            Object.keys(f.properties).forEach(k => propsSet.add(k));
-          }
-        });
+      } else if (geojson.type === 'Feature') {
+        features = [geojson];
       }
+      features.forEach((f: any) => {
+        if (f.properties) {
+          Object.keys(f.properties).forEach(k => propsSet.add(k));
+        }
+      });
       properties = Array.from(propsSet).sort();
-      featureCount = count;
+      featureCount = features.length;
       rawFeatures = features;
       status = 'loaded';
     } catch (e: any) {
+      console.error('[BuilderGeoJsonConfigModal fetchAndParse:error]', e);
       errorMessage = e.message;
       properties = [];
       featureCount = 0;
@@ -88,12 +115,35 @@
   }
 
   $effect(() => {
-    const numericCmid = Number(config.cmid);
-    if (numericCmid && numericCmid !== lastCmid && numericCmid > 0) {
-      lastCmid = numericCmid;
-      fetchAndParse(numericCmid);
-    } else if (!numericCmid) {
+    const trimmed = rawSourceInput.trim();
+    if (!trimmed) {
       status = 'no-data';
+      lastSourceKey = '';
+      return;
+    }
+
+    if (isUrlInput(trimmed)) {
+      draftConfig.url = trimmed;
+      delete (draftConfig as any).cmid;
+      const currentKey = `url:${trimmed}`;
+      if (currentKey !== lastSourceKey) {
+        lastSourceKey = currentKey;
+        fetchAndParse({ url: trimmed });
+      }
+    } else {
+      const num = Number(trimmed);
+      if (num > 0) {
+        draftConfig.cmid = num;
+        delete (draftConfig as any).url;
+        const currentKey = `cmid:${num}`;
+        if (currentKey !== lastSourceKey) {
+          lastSourceKey = currentKey;
+          fetchAndParse({ cmid: num });
+        }
+      } else {
+        status = 'no-data';
+        lastSourceKey = '';
+      }
     }
   });
 
@@ -109,39 +159,75 @@
 
   $effect(() => {
     // Ensure nested objects exist based on type
-    if (config.type === 'spikes') {
-      if (!config.spike) config.spike = { scalar: 2000000, heightProp: '' };
+    if (draftConfig.type === 'spikes') {
+      if (!draftConfig.spike) draftConfig.spike = { scalar: 2000000, heightProp: '' };
     }
   });
 
   $effect(() => {
     // Ensure styles array exists to be manipulated by the UI
-    if (!config.styles) {
-      if ((config as any).colourMode) {
-        config.styles = [
+    if (!draftConfig.styles) {
+      if ((draftConfig as any).colourMode) {
+        draftConfig.styles = [
           {
-            colourMode: (config as any).colourMode,
-            colourProp: (config as any).colourProp,
-            colourConfig: (config as any).colourConfig,
-            filter: (config as any).filter,
-            opacity: (config as any).opacity ?? 1
+            colourMode: (draftConfig as any).colourMode,
+            colourProp: (draftConfig as any).colourProp,
+            colourConfig: (draftConfig as any).colourConfig,
+            filter: (draftConfig as any).filter,
+            opacity: (draftConfig as any).opacity ?? 1
           } as any
         ];
-        delete (config as any).colourMode;
-        delete (config as any).colourProp;
-        delete (config as any).colourConfig;
-        delete (config as any).filter;
-        delete (config as any).opacity;
+        delete (draftConfig as any).colourMode;
+        delete (draftConfig as any).colourProp;
+        delete (draftConfig as any).colourConfig;
+        delete (draftConfig as any).filter;
+        delete (draftConfig as any).opacity;
       } else {
-        config.styles = [{ colourMode: 'basic', opacity: 1, isOpaque: false }];
+        draftConfig.styles = [{ colourMode: 'basic', opacity: 1, isOpaque: false }];
       }
     }
   });
 
   function handleSave(goto = false) {
-    if (config.cmid !== undefined && config.cmid !== null && config.cmid !== '') {
-      config.cmid = Number(config.cmid);
+    const trimmed = rawSourceInput.trim();
+    console.log('[BuilderGeoJsonConfigModal handleSave:start]', { trimmed, goto, draftConfig: $state.snapshot(draftConfig) });
+    if (!trimmed) {
+      alert('Please enter a valid CMID or URL.');
+      return;
     }
+
+    const isUrl = isUrlInput(trimmed);
+    if (isUrl) {
+      if (!isValidUrl(trimmed)) {
+        console.warn('[BuilderGeoJsonConfigModal handleSave:invalid_url]', trimmed);
+        alert('Preview URLs are not allowed. Please use a live-production or res/sites URL.');
+        return;
+      }
+      config.url = trimmed;
+      delete (config as any).cmid;
+      config.type = draftConfig.type;
+      config.styles = $state.snapshot(draftConfig.styles);
+      config.pointSize = $state.snapshot(draftConfig.pointSize);
+      config.lineWidth = $state.snapshot(draftConfig.lineWidth);
+      config.spike = $state.snapshot(draftConfig.spike);
+      console.log('[BuilderGeoJsonConfigModal handleSave:assigned_url]', { config: $state.snapshot(config) });
+    } else {
+      const numericCmid = Number(trimmed);
+      if (!numericCmid || isNaN(numericCmid) || numericCmid <= 0) {
+        console.warn('[BuilderGeoJsonConfigModal handleSave:invalid_cmid]', trimmed);
+        alert('Please enter a valid CMID.');
+        return;
+      }
+      config.cmid = numericCmid;
+      delete (config as any).url;
+      config.type = draftConfig.type;
+      config.styles = $state.snapshot(draftConfig.styles);
+      config.pointSize = $state.snapshot(draftConfig.pointSize);
+      config.lineWidth = $state.snapshot(draftConfig.lineWidth);
+      config.spike = $state.snapshot(draftConfig.spike);
+      console.log('[BuilderGeoJsonConfigModal handleSave:assigned_cmid]', { config: $state.snapshot(config) });
+    }
+
     let bounds: [number, number][] | undefined = undefined;
     if (goto && rawFeatures.length > 0) {
       let minX = Infinity,
@@ -198,28 +284,27 @@
         ];
       }
     }
-    Object.assign(initialConfig, config, {
-      cmid: Number(config.cmid) || 0
-    });
+
+    console.log('[BuilderGeoJsonConfigModal handleSave:calling_onclose]', { bounds, config: $state.snapshot(config) });
     onclose?.(bounds);
   }
 
   function addStyle() {
-    config.styles = [...(config.styles ?? []), { colourMode: 'basic', opacity: 1, isOpaque: false }];
+    draftConfig.styles = [...(draftConfig.styles ?? []), { colourMode: 'basic', opacity: 1, isOpaque: false }];
   }
 
   function removeStyle(index: number) {
-    if (config.styles) {
-      config.styles = config.styles.filter((_, i) => i !== index);
+    if (draftConfig.styles) {
+      draftConfig.styles = draftConfig.styles.filter((_, i) => i !== index);
     }
   }
 
   function moveStyle(from: number, to: number) {
-    if (!config.styles || to < 0 || to >= config.styles.length) return;
-    const newStyles = [...config.styles];
+    if (!draftConfig.styles || to < 0 || to >= draftConfig.styles.length) return;
+    const newStyles = [...draftConfig.styles];
     const [style] = newStyles.splice(from, 1);
     newStyles.splice(to, 0, style);
-    config.styles = newStyles;
+    draftConfig.styles = newStyles;
   }
 </script>
 
@@ -245,13 +330,23 @@
             (<small class="stat">{featureCount} features</small>)
           {/if}</legend
         >
-        <CmidInput
-          id="gj-cmid"
-          label="CMID"
-          placeholder="e.g. 12345678"
-          bind:value={config.cmid}
-          loading={status === 'loading'}
-        />
+        <div class="field-group">
+          <label for="gj-source">CMID or GeoJSON / TopoJSON URL</label>
+          <div class="source-input-row">
+            <input
+              id="gj-source"
+              type="text"
+              placeholder="e.g. 106753230 or https://..."
+              bind:value={rawSourceInput}
+            />
+            {#if status === 'loading'}
+              <span class="source-loading-badge">Loading...</span>
+            {/if}
+          </div>
+          <small class="help-text">
+            Enter a CoreMedia document ID (CMID) or paste a direct GeoJSON / TopoJSON URL.
+          </small>
+        </div>
 
         {#if status === 'loading'}
           <div style:padding="0.5rem 0">Loading metadata...</div>
@@ -273,31 +368,31 @@
                 style:cursor="pointer"
                 style:text-transform="capitalize"
               >
-                <input type="radio" name="gj-type" value={type} bind:group={config.type} />
+                <input type="radio" name="gj-type" value={type} bind:group={draftConfig.type} />
                 {type}
               </label>
             {/each}
           </div>
         </fieldset>
 
-        {#if config.type === 'points' || config.type === 'spikes'}
-          <BuilderPropGeoJsonSize bind:config prop="pointSize" legend="Point Size" />
+        {#if draftConfig.type === 'points' || draftConfig.type === 'spikes'}
+          <BuilderPropGeoJsonSize bind:config={draftConfig} prop="pointSize" legend="Point Size" />
         {/if}
 
-        {#if config.type === 'lines'}
-          <BuilderPropGeoJsonSize bind:config prop="lineWidth" legend="Line Width" />
+        {#if draftConfig.type === 'lines'}
+          <BuilderPropGeoJsonSize bind:config={draftConfig} prop="lineWidth" legend="Line Width" />
         {/if}
 
-        {#if config.type === 'spikes'}
-          <BuilderPropGeoJsonHeight bind:config {properties} features={rawFeatures} />
+        {#if draftConfig.type === 'spikes'}
+          <BuilderPropGeoJsonHeight bind:config={draftConfig} {properties} features={rawFeatures} />
         {/if}
       {/if}
     {:else if activeTab === 'style'}
       {#if status === 'loaded'}
-        {#if config.styles}
+        {#if draftConfig.styles}
           <p class="gj-note">Adjust how your GeoJSON displays. Styles are matched in order, from top to bottom.</p>
 
-          {#each config.styles as style, i}
+          {#each draftConfig.styles as style, i}
             <Collapsible open={i === 0}>
               {#snippet header()}
                 <h4 style:margin="0" style:display="inline-block; font-size: 0.9em;">
@@ -328,13 +423,13 @@
                   <button
                     type="button"
                     class="gj-btn-icon"
-                    disabled={i === (config.styles?.length ?? 0) - 1}
+                    disabled={i === (draftConfig.styles?.length ?? 0) - 1}
                     onclick={() => moveStyle(i, i + 1)}
                     title="Move Down"
                   >
                     <ArrowDown width="12" height="12" />
                   </button>
-                  {#if config.styles && config.styles.length > 1}
+                  {#if draftConfig.styles && draftConfig.styles.length > 1}
                     <button
                       type="button"
                       class="gj-btn-icon gj-btn-danger"
@@ -347,9 +442,9 @@
                 </div>
               {/snippet}
 
-              <BuilderPropGeoJsonFilter bind:style={config.styles[i]} {properties} {getUniqueValues} />
+              <BuilderPropGeoJsonFilter bind:style={draftConfig.styles[i]} {properties} {getUniqueValues} />
 
-              <BuilderPropGeoJsonColour bind:style={config.styles[i]} {properties} features={rawFeatures} />
+              <BuilderPropGeoJsonColour bind:style={draftConfig.styles[i]} {properties} features={rawFeatures} />
 
               <fieldset>
                 <legend>Opacity</legend>
@@ -359,12 +454,12 @@
                     min="0"
                     max="1"
                     step="0.05"
-                    bind:value={config.styles[i].opacity}
+                    bind:value={draftConfig.styles[i].opacity}
                     style="flex: 1"
                   />
-                  <span style:font-variant-numeric="tabular-nums">{(config.styles[i].opacity ?? 1).toFixed(2)}</span>
+                  <span style:font-variant-numeric="tabular-nums">{(draftConfig.styles[i].opacity ?? 1).toFixed(2)}</span>
                   <label style:display="flex" style:align-items="center" style:gap="0.25rem" style:cursor="pointer">
-                    <input type="checkbox" bind:checked={config.styles[i].isOpaque} />
+                    <input type="checkbox" bind:checked={draftConfig.styles[i].isOpaque} />
                     Fully Opaque
                   </label>
                 </div>
@@ -430,9 +525,46 @@
     cursor: not-allowed;
   }
 
-  .stat {
-    font-weight: normal;
-    font-size: 0.8em;
+  .source-input-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+  }
+
+  .source-input-row input {
+    flex: 1;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .source-loading-badge {
+    position: absolute;
+    right: 0.5rem;
+    font-size: 0.75rem;
     color: var(--text-light, #888);
+    pointer-events: none;
+  }
+
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .field-group label {
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .help-text {
+    font-size: 0.75rem;
+    color: var(--text-light, #888);
+  }
+
+  .help-text code {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.1rem 0.25rem;
+    border-radius: 2px;
   }
 </style>

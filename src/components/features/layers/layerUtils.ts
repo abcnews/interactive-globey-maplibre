@@ -15,7 +15,7 @@ export function generateGeoJsonSourceId(idOrCmid: number | string | undefined): 
  * Returns the layer IDs associated with a GeoJsonConfig.
  */
 export function getGeoJsonLayerIds(config: GeoJsonConfig): string[] {
-  const sourceId = generateGeoJsonSourceId(config.id || config.cmid);
+  const sourceId = generateGeoJsonSourceId(config.id || config.cmid || config.url);
   switch (config.type) {
     case 'areas':
       return [`${sourceId}-fill`, `${sourceId}-outline`];

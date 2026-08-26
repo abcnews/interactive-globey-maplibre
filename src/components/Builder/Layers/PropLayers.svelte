@@ -41,6 +41,7 @@
   let showAddMenu = $state(false);
 
   function openEditModal(feature: LayerFeatureDefinition<any>, item: LayerItemDescriptor<any>) {
+    console.log('[PropLayers openEditModal]', { kind: feature.kind, item, data: item.data });
     editingItem = {
       feature,
       descriptor: item,
@@ -109,6 +110,7 @@
 
     const maxZ = layers.length > 0 ? Math.max(...layers.map(l => l.zIndex)) + 10 : feature.defaultZIndex;
     const newItem = feature.createDefault({ maxZIndex: maxZ, map });
+    console.log('[PropLayers addLayer]', { kind: feature.kind, newItem, optionsGeoJsonBefore: options.geoJson });
 
     if (feature.interactivePlacement) {
       activePlacement = {
@@ -118,6 +120,7 @@
       };
     } else {
       feature.add(options, newItem);
+      console.log('[PropLayers addLayer:after_add]', { optionsGeoJsonAfter: options.geoJson });
       if (feature.ConfigModal) {
         openEditModal(feature, {
           id: `${feature.kind}-${Date.now()}`,
@@ -182,21 +185,56 @@
   });
 
   function handleClose(bounds?: [number, number][]) {
+    console.log('[PropLayers handleClose:start]', { bounds, editingItem, optionsGeoJson: options.geoJson });
     if (bounds && map) {
       safeFitBounds(map, bounds, { padding: 50 });
     }
-    // Clean up empty or invalid added item if no cmid or no url
+    // Clean up empty or invalid added item if no cmid or no url, otherwise sync data into options
     if (editingItem) {
       const { feature, descriptor, data } = editingItem;
-      const currentData = descriptor.data || data;
-      if (feature.kind === 'icon' && !currentData?.cmid) {
-        feature.delete(options, descriptor);
-      } else if (feature.kind === 'geojson' && !currentData?.cmid) {
-        feature.delete(options, descriptor);
-      } else if (feature.kind === 'image' && !currentData?.url) {
-        feature.delete(options, descriptor);
+      const currentData = editingItem.data ?? descriptor.data ?? data;
+      const targetData = descriptor?.data || data;
+      if (descriptor) {
+        descriptor.data = currentData;
+      }
+      console.log('[PropLayers handleClose:cleanup_check]', {
+        kind: feature.kind,
+        currentData,
+        hasCmid: Boolean(currentData?.cmid),
+        hasUrl: Boolean(currentData?.url)
+      });
+      if (feature.kind === 'icon') {
+        if (!currentData?.cmid) {
+          console.log('[PropLayers handleClose:deleting_empty_icon]');
+          feature.delete(options, descriptor);
+        } else if (options.icons) {
+          options.icons = options.icons.map(item => (item === targetData || (item.id && item.id === currentData.id) ? currentData : item));
+        }
+      } else if (feature.kind === 'geojson') {
+        if (!currentData?.cmid && !currentData?.url) {
+          console.log('[PropLayers handleClose:deleting_empty_geojson]');
+          feature.delete(options, descriptor);
+        } else if (options.geoJson) {
+          options.geoJson = options.geoJson.map(item => (item === targetData || (item.id && item.id === currentData.id) ? currentData : item));
+        }
+      } else if (feature.kind === 'image') {
+        if (!currentData?.url) {
+          console.log('[PropLayers handleClose:deleting_empty_image]');
+          feature.delete(options, descriptor);
+        } else if (options.imageSources) {
+          options.imageSources = options.imageSources.map(item => (item === targetData || (item.id && item.id === currentData.id) ? currentData : item));
+        }
       }
     }
+    // Always trigger reactivity on options so the hash and other components update immediately
+    options = {
+      ...options,
+      rasterLayers: options.rasterLayers ? [...options.rasterLayers] : [],
+      imageSources: options.imageSources ? [...options.imageSources] : [],
+      geoJson: options.geoJson ? [...options.geoJson] : [],
+      icons: options.icons ? [...options.icons] : []
+    };
+    console.log('[PropLayers handleClose:final_options]', { optionsGeoJson: options.geoJson });
     editingItem = null;
   }
 </script>

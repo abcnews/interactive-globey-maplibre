@@ -30,11 +30,12 @@ export const geoJsonFeature: LayerFeatureDefinition<GeoJsonConfig> = {
   getItems(options: DecodedObject): LayerItemDescriptor<GeoJsonConfig>[] {
     return (options.geoJson || []).map((item, idx) => {
       const typeStr = item.type ? item.type.charAt(0).toUpperCase() + item.type.slice(1) : 'GeoJSON';
+      const description = item.cmid ? `CMID: ${item.cmid}` : item.url ? item.url : 'No source';
       return {
-        id: `geojson-${item.id || item.cmid || idx}`,
+        id: `geojson-${item.id || item.cmid || item.url || idx}`,
         kind: 'geojson',
         name: typeStr,
-        description: item.cmid ? `CMID: ${item.cmid}` : 'No CMID',
+        description,
         zIndex: item.zIndex ?? Z_INDEX_GEOJSON + idx * 0.1,
         data: item
       };
