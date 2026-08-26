@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { Search } from 'svelte-bootstrap-icons';
   import { debounce } from 'throttle-debounce';
   import { searchGeoNames, type GeoNameResult } from './utils';
+  import SearchInput from '../shared/SearchInput.svelte';
 
   interface Props {
     /** Callback fired when a location is selected */
@@ -19,13 +19,6 @@
   let results = $state<GeoNameResult[]>([]);
   let isDropdownOpen = $state(false);
   let containerEl = $state<HTMLDivElement>();
-  let inputEl = $state<HTMLInputElement>();
-
-  $effect(() => {
-    if (autofocus && inputEl) {
-      inputEl.focus();
-    }
-  });
 
   async function performSearch(keyword: string) {
     if (!keyword.trim()) {
@@ -55,9 +48,7 @@
 
   const debouncedPerformSearch = debounce(300, performSearch);
 
-  function handleInput(e: Event) {
-    const val = (e.currentTarget as HTMLInputElement).value;
-    searchTerm = val;
+  function handleSearchInput(val: string) {
     if (val.trim()) {
       isDropdownOpen = true;
       debouncedPerformSearch(val);
@@ -88,21 +79,17 @@
 <svelte:document onclick={handleDocumentClick} />
 
 <div class="geo-search-container" bind:this={containerEl}>
-  <div class="input-wrapper">
-    <Search class="search-icon" />
-    <input
-      type="text"
-      bind:this={inputEl}
-      {autofocus}
-      value={searchTerm}
-      oninput={handleInput}
-      onfocus={() => {
-        if (results.length > 0) isDropdownOpen = true;
-      }}
-      {placeholder}
-      class="geo-search-input"
-    />
-  </div>
+  <SearchInput
+    bind:value={searchTerm}
+    {placeholder}
+    {autofocus}
+    oninput={handleSearchInput}
+    onclear={() => {
+      results = [];
+      isDropdownOpen = false;
+    }}
+  />
+
 
   {#if isDropdownOpen && (isSearching || results.length > 0 || searchTerm.trim().length > 1)}
     <div class="results-dropdown">
@@ -147,48 +134,6 @@
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
-  }
-
-  .input-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  :global(.search-icon) {
-    position: absolute;
-    left: 0.6rem;
-    pointer-events: none;
-    opacity: 0.6;
-    font-size: 0.85rem;
-  }
-
-  .geo-search-input {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.45rem 0.6rem 0.45rem 2rem;
-    background: var(--background-alt, #2c2c2f);
-    border: 1px solid var(--border, rgba(122, 123, 135, 0.5));
-    border-radius: 4px;
-    color: var(--text, #ccc);
-    font-size: 0.85rem;
-  }
-
-  .geo-search-input::-webkit-search-cancel-button,
-  .geo-search-input::-webkit-search-decoration,
-  .geo-search-input::-webkit-search-results-button,
-  .geo-search-input::-webkit-search-results-decoration {
-    -webkit-appearance: none;
-    appearance: none;
-    display: none;
-  }
-
-  .geo-search-input:focus {
-    outline: none;
-    border-color: #64b5f6;
-    background: #252528;
   }
 
   .results-dropdown {

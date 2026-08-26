@@ -173,8 +173,7 @@
             colourMode: (draftConfig as any).colourMode,
             colourProp: (draftConfig as any).colourProp,
             colourConfig: (draftConfig as any).colourConfig,
-            filter: (draftConfig as any).filter,
-            opacity: (draftConfig as any).opacity ?? 1
+            filter: (draftConfig as any).filter
           } as any
         ];
         delete (draftConfig as any).colourMode;
@@ -183,7 +182,7 @@
         delete (draftConfig as any).filter;
         delete (draftConfig as any).opacity;
       } else {
-        draftConfig.styles = [{ colourMode: 'basic', opacity: 1, isOpaque: false }];
+        draftConfig.styles = [{ colourMode: 'basic' }];
       }
     }
   });
@@ -290,8 +289,9 @@
   }
 
   function addStyle() {
-    draftConfig.styles = [...(draftConfig.styles ?? []), { colourMode: 'basic', opacity: 1, isOpaque: false }];
+    draftConfig.styles = [...(draftConfig.styles ?? []), { colourMode: 'basic' }];
   }
+
 
   function removeStyle(index: number) {
     if (draftConfig.styles) {
@@ -445,31 +445,13 @@
               <BuilderPropGeoJsonFilter bind:style={draftConfig.styles[i]} {properties} {getUniqueValues} />
 
               <BuilderPropGeoJsonColour bind:style={draftConfig.styles[i]} {properties} features={rawFeatures} />
-
-              <fieldset>
-                <legend>Opacity</legend>
-                <div style:display="flex" style:align-items="center" style:gap="1rem">
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    bind:value={draftConfig.styles[i].opacity}
-                    style="flex: 1"
-                  />
-                  <span style:font-variant-numeric="tabular-nums">{(draftConfig.styles[i].opacity ?? 1).toFixed(2)}</span>
-                  <label style:display="flex" style:align-items="center" style:gap="0.25rem" style:cursor="pointer">
-                    <input type="checkbox" bind:checked={draftConfig.styles[i].isOpaque} />
-                    Fully Opaque
-                  </label>
-                </div>
-              </fieldset>
             </Collapsible>
           {/each}
 
           <div style:margin-bottom="1rem">
             <button type="button" onclick={addStyle}>+ Add Another Style</button>
           </div>
+
         {/if}
       {:else}
         <div style:padding="1rem" style:text-align="center" style:color="var(--text-light, #888)">

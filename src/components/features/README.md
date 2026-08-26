@@ -123,6 +123,18 @@ export const myFeature: LayerFeatureDefinition<MyFeatureConfig> = {
     options.myFeatures = [...(options.myFeatures || []), item];
   },
 
+  isValid(data: MyFeatureConfig) {
+    return Boolean(data?.id && data?.url);
+  },
+
+  update(options: DecodedObject, descriptor: LayerItemDescriptor<MyFeatureConfig>, data: MyFeatureConfig) {
+    if (options.myFeatures) {
+      options.myFeatures = options.myFeatures.map(item =>
+        item === descriptor.data || (item.id && item.id === data.id) ? data : item
+      );
+    }
+  },
+
   delete(options: DecodedObject, item: LayerItemDescriptor<MyFeatureConfig>) {
     options.myFeatures = (options.myFeatures || []).filter(entry => entry !== item.data);
   },
@@ -131,6 +143,12 @@ export const myFeature: LayerFeatureDefinition<MyFeatureConfig> = {
   MapRenderer: MyFeatureHandler
 };
 ```
+
+### Validation & Updates (`isValid` and `update`)
+
+- **`isValid(data, options)`**: Checks whether a layer item is populated with required fields (e.g. valid CMID or URL). If the user closes the config modal without configuring required fields, `PropLayers` calls `feature.delete()` automatically to remove empty drafts.
+- **`update(options, descriptor, data)`**: Synchronizes modified item data back into the `DecodedObject` options upon modal closure or inline edits.
+
 
 ### Action Buttons (Optional)
 

@@ -1,13 +1,16 @@
 <script lang="ts">
+  import type { Component } from 'svelte';
   import type { Map as MapLibreMap } from 'maplibre-gl';
   import type { DecodedObject } from '../../../lib/marker';
   import {
     layerFeatureRegistry,
+    layerAddMenuRegistry,
     Z_INDEX_IMAGE_LAYERS,
     getDefaultLayerButtons,
     type LayerItemDescriptor,
     type LayerFeatureDefinition,
-    type LayerButton
+    type LayerButton,
+    type LayerAddMenuItem
   } from '../../features';
   import { safeFitBounds } from '../utils';
   import PropList from '../PropList.svelte';
@@ -28,6 +31,9 @@
     descriptor: LayerItemDescriptor<any>;
     data: any;
   } | null>(null);
+
+  /** Active custom modal for complex creation flows (e.g. Highlight Features) */
+  let activeCustomModal = $state<Component<any> | null>(null);
 
   /** Active interactive placement state (e.g. click-to-place icons or custom buttons) */
   let activePlacement = $state<{
@@ -102,6 +108,25 @@
       geoJson: options.geoJson ? [...options.geoJson] : [],
       icons: options.icons ? [...options.icons] : []
     };
+  }
+
+  function handleAddMenuItem(menuItem: LayerAddMenuItem) {
+    showAddMenu = false;
+    editingItem = null;
+
+    if (menuItem.CustomModal) {
+      activeCustomModal = menuItem.CustomModal;
+    } else if (menuItem.onSelect) {
+      menuItem.onSelect({
+        options,
+        map,
+        openModal: (modal: Component<any>) => {
+          activeCustomModal = modal;
+        }
+      });
+    } else if (menuItem.feature) {
+      addLayer(menuItem.feature);
+    }
   }
 
   function addLayer(feature: LayerFeatureDefinition<any>) {
@@ -185,47 +210,21 @@
   });
 
   function handleClose(bounds?: [number, number][]) {
-    console.log('[PropLayers handleClose:start]', { bounds, editingItem, optionsGeoJson: options.geoJson });
     if (bounds && map) {
       safeFitBounds(map, bounds, { padding: 50 });
     }
-    // Clean up empty or invalid added item if no cmid or no url, otherwise sync data into options
+
     if (editingItem) {
       const { feature, descriptor, data } = editingItem;
       const currentData = editingItem.data ?? descriptor.data ?? data;
-      const targetData = descriptor?.data || data;
-      if (descriptor) {
-        descriptor.data = currentData;
-      }
-      console.log('[PropLayers handleClose:cleanup_check]', {
-        kind: feature.kind,
-        currentData,
-        hasCmid: Boolean(currentData?.cmid),
-        hasUrl: Boolean(currentData?.url)
-      });
-      if (feature.kind === 'icon') {
-        if (!currentData?.cmid) {
-          console.log('[PropLayers handleClose:deleting_empty_icon]');
-          feature.delete(options, descriptor);
-        } else if (options.icons) {
-          options.icons = options.icons.map(item => (item === targetData || (item.id && item.id === currentData.id) ? currentData : item));
-        }
-      } else if (feature.kind === 'geojson') {
-        if (!currentData?.cmid && !currentData?.url) {
-          console.log('[PropLayers handleClose:deleting_empty_geojson]');
-          feature.delete(options, descriptor);
-        } else if (options.geoJson) {
-          options.geoJson = options.geoJson.map(item => (item === targetData || (item.id && item.id === currentData.id) ? currentData : item));
-        }
-      } else if (feature.kind === 'image') {
-        if (!currentData?.url) {
-          console.log('[PropLayers handleClose:deleting_empty_image]');
-          feature.delete(options, descriptor);
-        } else if (options.imageSources) {
-          options.imageSources = options.imageSources.map(item => (item === targetData || (item.id && item.id === currentData.id) ? currentData : item));
-        }
+
+      if (feature.isValid && !feature.isValid(currentData, options)) {
+        feature.delete(options, descriptor);
+      } else if (feature.update) {
+        feature.update(options, descriptor, currentData);
       }
     }
+
     // Always trigger reactivity on options so the hash and other components update immediately
     options = {
       ...options,
@@ -234,9 +233,9 @@
       geoJson: options.geoJson ? [...options.geoJson] : [],
       icons: options.icons ? [...options.icons] : []
     };
-    console.log('[PropLayers handleClose:final_options]', { optionsGeoJson: options.geoJson });
     editingItem = null;
   }
+
 </script>
 
 <fieldset class="prop-layers">
@@ -248,10 +247,11 @@
       </button>
       {#if showAddMenu}
         <div class="add-menu">
-          {#each layerFeatureRegistry as feature (feature.kind)}
-            {#if !feature.canAdd || feature.canAdd(options)}
-              <button type="button" onclick={() => addLayer(feature)}>
-                <feature.icon /> {feature.label}
+          {#each layerAddMenuRegistry as menuItem (menuItem.id)}
+            {#if !menuItem.canAdd || menuItem.canAdd(options)}
+              <button type="button" onclick={() => handleAddMenuItem(menuItem)}>
+                <menuItem.icon />
+                {menuItem.label}
               </button>
             {/if}
           {/each}
@@ -316,6 +316,27 @@
     {:else}
       <editingItem.feature.ConfigModal bind:config={editingItem.data} {map} onclose={handleClose} />
     {/if}
+  {/if}
+
+  {#if activeCustomModal}
+    {@const CustomModalComponent = activeCustomModal}
+    <CustomModalComponent
+      bind:options
+      {map}
+      onclose={(bounds?: [number, number][]) => {
+        if (bounds && map) {
+          safeFitBounds(map, bounds, { padding: 50 });
+        }
+        options = {
+          ...options,
+          rasterLayers: options.rasterLayers ? [...options.rasterLayers] : [],
+          imageSources: options.imageSources ? [...options.imageSources] : [],
+          geoJson: options.geoJson ? [...options.geoJson] : [],
+          icons: options.icons ? [...options.icons] : []
+        };
+        activeCustomModal = null;
+      }}
+    />
   {/if}
 </fieldset>
 

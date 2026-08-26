@@ -62,9 +62,22 @@ export const rasterFeature: LayerFeatureDefinition<RasterLayerConfig> = {
     options.rasterLayers = [...(options.rasterLayers || []), item];
   },
 
+  isValid(data: RasterLayerConfig) {
+    return Boolean(data?.url);
+  },
+
+  update(options: DecodedObject, descriptor: LayerItemDescriptor<RasterLayerConfig>, data: RasterLayerConfig) {
+    if (options.rasterLayers) {
+      options.rasterLayers = options.rasterLayers.map(item =>
+        item === descriptor.data || ((item as any).id && (item as any).id === (data as any).id) ? data : item
+      );
+    }
+  },
+
   delete(options: DecodedObject, item: LayerItemDescriptor<RasterLayerConfig>) {
     options.rasterLayers = (options.rasterLayers || []).filter(entry => entry !== item.data);
   },
+
 
   ConfigModal: BuilderRasterConfigModal,
   MapRenderer: MapRastersHandler

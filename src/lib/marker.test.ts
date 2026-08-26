@@ -318,6 +318,13 @@ describe('marker codecs', () => {
             type: 'points',
             zIndex: 420,
             styles: [{ colourMode: 'basic', opacity: 0.9 }]
+          },
+          {
+            id: 'fra-1',
+            url: 'https://www.abc.net.au/res/sites/news-projects/geojson-naturalearth-countries/10m-defacto/FRA.geojson',
+            type: 'areas',
+            zIndex: 400,
+            styles: [{ colourMode: 'basic' }]
           }
         ]
       };
@@ -325,12 +332,17 @@ describe('marker codecs', () => {
       const fragment = await markerSchema.encode(input);
       assert.ok(/^[a-z0-9]*$/i.test(fragment), `Fragment contains non-alphanumeric characters: ${fragment}`);
       const decoded = await markerSchema.decode(fragment);
-      assert.strictEqual(decoded.geoJson?.length, 1);
+      assert.strictEqual(decoded.geoJson?.length, 2);
       assert.strictEqual(decoded.geoJson![0].id, 'gj-url-1');
       assert.strictEqual(decoded.geoJson![0].url, 'https://live-production.wcms.abc-cdn.net.au/data/places.geojson');
       assert.strictEqual(decoded.geoJson![0].type, 'points');
       assert.strictEqual(decoded.geoJson![0].zIndex, 420);
+      assert.strictEqual(decoded.geoJson![1].id, 'fra-1');
+      assert.strictEqual(decoded.geoJson![1].url, 'https://www.abc.net.au/res/sites/news-projects/geojson-naturalearth-countries/10m-defacto/FRA.geojson');
+      assert.strictEqual(decoded.geoJson![1].type, 'areas');
+      assert.strictEqual(decoded.geoJson![1].zIndex, 400);
     });
+
 
     it('should filter out invalid preview URLs and zero CMIDs during encode', async () => {
       const input: DecodedObject = {

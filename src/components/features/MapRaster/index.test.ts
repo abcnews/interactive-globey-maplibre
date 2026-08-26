@@ -79,4 +79,18 @@ describe('Raster Feature Definition', () => {
     rasterFeature.setZIndex(options, descriptor, 160);
     assert.strictEqual(item.zIndex, 160);
   });
+
+  it('isValid and update should validate and synchronize raster layers', () => {
+    assert.strictEqual(rasterFeature.isValid?.({ url: 'https://example.com/tiles/{z}/{x}/{y}.png' } as any, {}), true);
+    assert.strictEqual(rasterFeature.isValid?.({ url: '' } as any, {}), false);
+
+    const item = { url: 'https://example.com/1/{z}/{x}/{y}.png', maxZoom: 10, attribution: 'A' };
+    const options: DecodedObject = { rasterLayers: [item] };
+    const [descriptor] = rasterFeature.getItems(options);
+
+    const updated = { ...item, attribution: 'Updated Attribution' };
+    rasterFeature.update?.(options, descriptor, updated);
+    assert.strictEqual(options.rasterLayers?.[0].attribution, 'Updated Attribution');
+  });
 });
+

@@ -114,9 +114,21 @@ export interface LayerFeatureDefinition<T = any> {
   add: (options: DecodedObject, item: T) => void;
 
   /**
+   * Checks whether the layer item is valid and populated.
+   * If false, empty/unconfigured draft items are automatically cleaned up when the modal closes.
+   */
+  isValid?: (item: T, options: DecodedObject) => boolean;
+
+  /**
+   * Updates an existing layer item with modified data in options.
+   */
+  update?: (options: DecodedObject, descriptor: LayerItemDescriptor<T>, data: T) => void;
+
+  /**
    * Deletes a layer item from the DecodedObject options.
    */
   delete: (options: DecodedObject, item: LayerItemDescriptor<T>) => void;
+
 
   /**
    * Svelte modal component for editing or configuring this layer (prefixed with Builder).
@@ -136,4 +148,41 @@ export interface LayerFeatureDefinition<T = any> {
     options?: DecodedObject;
   }>;
 }
+
+/**
+ * Context passed when selecting an item from the Add Layer menu.
+ */
+export interface LayerAddContext {
+  /** Decoded marker options */
+  options: DecodedObject;
+  /** MapLibre map instance if available */
+  map?: MapLibreMap;
+  /** Function to open a custom modal */
+  openModal: (modal: Component<any>, props?: Record<string, any>) => void;
+}
+
+/**
+ * Descriptor for an entry in the Builder "Add Layer" menu.
+ */
+export interface LayerAddMenuItem {
+  /** Unique ID for the add menu entry */
+  id: string;
+  /** Display label in the menu */
+  label: string;
+  /** Svelte icon component */
+  icon: any;
+  /** Optional check if the item can currently be added */
+  canAdd?: (options: DecodedObject) => boolean;
+  /** Associated feature definition if directly mapping to standard feature creation */
+  feature?: LayerFeatureDefinition<any>;
+  /** Custom modal component for configuring or generating layers before adding */
+  CustomModal?: Component<{
+    options: DecodedObject;
+    map?: MapLibreMap;
+    onclose?: (bounds?: [number, number][]) => void;
+  }>;
+  /** Custom selection handler */
+  onSelect?: (context: LayerAddContext) => void;
+}
+
 

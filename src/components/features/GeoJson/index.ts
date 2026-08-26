@@ -1,6 +1,7 @@
 import type { LayerFeatureDefinition, LayerItemDescriptor } from '../types.ts';
 import type { GeoJsonConfig, DecodedObject } from '../../../lib/marker';
-import { Z_INDEX_GEOJSON } from '../layers/layerUtils.ts';
+import { isValidUrl } from '../../../lib/marker/utils.ts';
+import { Z_INDEX_BASE_RASTER, Z_INDEX_BASE_VECTOR, Z_INDEX_GEOJSON } from '../layers/layerUtils.ts';
 import { Map as MapIcon } from 'svelte-bootstrap-icons';
 import { createEditButton, createDeleteButton } from '../buttonHelpers.ts';
 import BuilderGeoJsonConfigModal from './BuilderGeoJsonConfigModal.svelte';
@@ -28,6 +29,10 @@ export const geoJsonFeature: LayerFeatureDefinition<GeoJsonConfig> = {
   },
 
   getItems(options: DecodedObject): LayerItemDescriptor<GeoJsonConfig>[] {
+    const streetMapZ = options.streetMapZIndex ?? Z_INDEX_BASE_VECTOR;
+    const rasterZs = (options.rasterLayers || []).map(r => r.zIndex ?? Z_INDEX_BASE_RASTER);
+    const baseZ = Math.max(streetMapZ, ...rasterZs);
+
     return (options.geoJson || []).map((item, idx) => {
       const typeStr = item.type ? item.type.charAt(0).toUpperCase() + item.type.slice(1) : 'GeoJSON';
       const description = item.cmid ? `CMID: ${item.cmid}` : item.url ? item.url : 'No source';
@@ -36,7 +41,7 @@ export const geoJsonFeature: LayerFeatureDefinition<GeoJsonConfig> = {
         kind: 'geojson',
         name: typeStr,
         description,
-        zIndex: item.zIndex ?? Z_INDEX_GEOJSON + idx * 0.1,
+        zIndex: item.zIndex ?? baseZ + 1 + idx * 0.1,
         data: item
       };
     });
@@ -50,6 +55,18 @@ export const geoJsonFeature: LayerFeatureDefinition<GeoJsonConfig> = {
 
   add(options: DecodedObject, item: GeoJsonConfig) {
     options.geoJson = [...(options.geoJson || []), item];
+  },
+
+  isValid(data: GeoJsonConfig) {
+    return Boolean((data?.cmid && Number(data.cmid) > 0) || (data?.url && isValidUrl(data.url)));
+  },
+
+  update(options: DecodedObject, descriptor: LayerItemDescriptor<GeoJsonConfig>, data: GeoJsonConfig) {
+    if (options.geoJson) {
+      options.geoJson = options.geoJson.map(item =>
+        item === descriptor.data || (item.id && item.id === data.id) ? data : item
+      );
+    }
   },
 
   delete(options: DecodedObject, item: LayerItemDescriptor<GeoJsonConfig>) {

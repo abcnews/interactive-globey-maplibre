@@ -125,4 +125,14 @@ describe('CustomLabels Feature Definition', () => {
     });
     assert.strictEqual(mockOpenModal.mock.calls.length, 1);
   });
+
+  it('update should update options.labels', () => {
+    const options: DecodedObject = { labels: [{ name: 'Old', coords: [0, 0], style: 'country-large', number: 0 }] };
+    const [descriptor] = customLabelsFeature.getItems(options);
+    const updated: Label[] = [{ name: 'New', coords: [1, 1], style: 'country-large', number: 1 }];
+
+    customLabelsFeature.update?.(options, descriptor, updated);
+    assert.deepStrictEqual(options.labels, updated);
+  });
 });
+

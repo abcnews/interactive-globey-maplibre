@@ -257,58 +257,43 @@ export const markerSchema = object({
   geoJson: array(geoJsonItemSchema)
     .transform(
       (items: any[]) =>
-        items?.filter(item => {
-          if (!item) return false;
-          const id = typeof item.cmid === 'number' ? item.cmid : item.c;
-          const url = item.url || item.u;
-          const hasCmid = typeof id === 'number' ? id > 0 : Boolean(id && !isNaN(Number(id)) && Number(id) > 0);
-          const hasUrl = Boolean(url && isValidUrl(url));
-          return hasCmid || hasUrl;
-        }) ?? [],
+        items?.filter(([_, cmid, url]) => (typeof cmid === 'number' ? cmid > 0 : Boolean(cmid)) || Boolean(url && isValidUrl(url))) ?? [],
       (items: any) => items
     )
     .asBase36()
     .key('gj')
     .default([]),
+
   icons: array(iconItemSchema)
     .transform(
       (items: any[]) =>
-        items?.filter(item => {
-          if (!item) return false;
-          const id = Array.isArray(item) ? item[1] : item?.cmid ?? item?.c;
-          return typeof id === 'number' ? id > 0 : Boolean(id && !isNaN(Number(id)) && Number(id) > 0);
-        }) ?? [],
+        items?.filter(([_, cmid]) => (typeof cmid === 'number' ? cmid > 0 : Boolean(cmid))) ?? [],
       (items: any) => items
     )
     .asBase36()
     .key('ic')
     .default([]),
+
   imageSources: array(imageSourceItemSchema)
     .transform(
       (items: any[]) =>
-        items?.filter(item => {
-          if (!item) return false;
-          const url = item.url || item.u;
-          return isValidUrl(url);
-        }) ?? [],
+        items?.filter(([_, url]) => Boolean(url && isValidUrl(url))) ?? [],
       (items: any) => items
     )
     .asBase36()
     .key('is')
     .default([]),
+
   rasterLayers: array(rasterItemSchema)
     .transform(
       (items: any[]) =>
-        items?.filter(item => {
-          if (!item) return false;
-          const url = item.url || item.u;
-          return isValidUrl(url);
-        }) ?? [],
+        items?.filter(([url]) => Boolean(url && isValidUrl(url))) ?? [],
       (items: any) => items
     )
     .asBase36()
     .key('rl')
     .default([]),
+
   labels: array(labelSchema).asBase36().key('labels').default([]),
   labelsZIndex: decimal(2).key('lz').optional(),
   mapLabelsZIndex: decimal(2).key('mlz').optional(),
@@ -327,3 +312,6 @@ export const markerSchema = object({
     return input || {};
   }
 );
+
+
+

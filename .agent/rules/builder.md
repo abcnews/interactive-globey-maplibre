@@ -18,4 +18,6 @@ For the complete feature implementation guide, see [src/components/features/READ
 - **Options Reactivity & Hash Sync**: When updating or closing layer modals in [PropLayers.svelte](../../src/components/Builder/Layers/PropLayers.svelte), ensure the saved layer object is written into the corresponding `options` array (`options.geoJson`, `options.icons`, `options.imageSources`) and reassign `options` (`options = { ...options, ... }`) to trigger ACTO marker hash re-encoding.
 - **CMID Form Inputs**: Never use `type="number"` for CMID fields (avoids spin button increment arrows). Always use `type="text"` with `inputmode="numeric"` and `pattern="[0-9]*"`.
 - **URL Templates in Markup**: Pass string attributes with literal curly braces (such as `{z}/{x}/{y}`) as JavaScript string expressions (`placeholder={'https://.../{z}/{x}/{y}.png'}`) to avoid Svelte template parsing errors.
+- **Builder Component Library (`@abcnews/components-builder`)**: Always use standard components from `@abcnews/components-builder` (such as `Modal`, `Typeahead`, `Loader`, `BuilderFrame`, `BuilderStyleRoot`) for builder modals, multi-select search dropdowns, and controls rather than reinventing bespoke UI primitives. Adhere to established patterns like `<Modal position="right" title="..." onClose={...} {footerChildren}>` with standard `<button>` elements.
+
 

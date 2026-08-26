@@ -102,4 +102,14 @@ describe('MapLabels Feature Definition', () => {
     assert.strictEqual(options.mapLabels?.countriesMinor, false);
     assert.strictEqual((options.mapLabels as any)?._disabled, true);
   });
+
+  it('update should update options.mapLabels', () => {
+    const options: DecodedObject = { mapLabels: { ...DEFAULT_MAP_LABELS } } as any;
+    const [descriptor] = mapLabelsFeature.getItems(options);
+    const updated = { ...DISABLED_MAP_LABELS };
+
+    mapLabelsFeature.update?.(options, descriptor, updated);
+    assert.deepStrictEqual(options.mapLabels, updated);
+  });
 });
+

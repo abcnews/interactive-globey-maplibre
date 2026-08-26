@@ -86,9 +86,14 @@ export const customLabelsFeature: LayerFeatureDefinition<Label[]> = {
     options.labels = item;
   },
 
+  update(options: DecodedObject, _descriptor: LayerItemDescriptor<Label[]>, data: Label[]) {
+    options.labels = data;
+  },
+
   delete(options: DecodedObject) {
     options.labels = [];
   },
+
 
   ConfigModal: BuilderCustomLabelsConfigModal,
   MapRenderer: MapCustomLabelHandler

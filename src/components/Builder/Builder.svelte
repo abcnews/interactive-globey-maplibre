@@ -26,7 +26,8 @@
     if (!options) {
       return;
     }
-    markerSchema.encode(options).then(hash => {
+    const currentOptions = $state.snapshot(options);
+    markerSchema.encode(currentOptions).then(hash => {
       const newHash = hash || '';
       if (window.location.hash.slice(1) !== newHash) {
         lastEncodedHash = newHash;
@@ -44,7 +45,10 @@
     const urlOptions = await markerSchema.decode(currentHash);
     options = urlOptions;
   }
+
+
   onMount(updateHash);
+
 
   $effect(() => {
     if (!map) {

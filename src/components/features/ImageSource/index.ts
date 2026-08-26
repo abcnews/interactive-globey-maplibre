@@ -1,5 +1,6 @@
 import type { LayerFeatureDefinition, LayerItemDescriptor } from '../types.ts';
 import type { ImageSourceConfig, DecodedObject } from '../../../lib/marker';
+import { isValidUrl } from '../../../lib/marker/utils.ts';
 import { Z_INDEX_IMAGE_LAYERS } from '../layers/layerUtils.ts';
 import { CardImage as ImageIcon } from 'svelte-bootstrap-icons';
 import { createEditButton, createDeleteButton } from '../buttonHelpers.ts';
@@ -57,9 +58,22 @@ export const imageSourceFeature: LayerFeatureDefinition<ImageSourceConfig> = {
     options.imageSources = [...(options.imageSources || []), item];
   },
 
+  isValid(data: ImageSourceConfig) {
+    return Boolean(data?.url && isValidUrl(data.url));
+  },
+
+  update(options: DecodedObject, descriptor: LayerItemDescriptor<ImageSourceConfig>, data: ImageSourceConfig) {
+    if (options.imageSources) {
+      options.imageSources = options.imageSources.map(item =>
+        item === descriptor.data || (item.id && item.id === data.id) ? data : item
+      );
+    }
+  },
+
   delete(options: DecodedObject, item: LayerItemDescriptor<ImageSourceConfig>) {
     options.imageSources = (options.imageSources || []).filter(entry => entry !== item.data);
   },
+
 
   ConfigModal: BuilderImageSourceConfigModal,
   MapRenderer: ImageSourcesHandler

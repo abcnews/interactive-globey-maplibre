@@ -68,7 +68,12 @@ export const mapLabelsFeature: LayerFeatureDefinition<MapLabelsConfig> = {
     delete (options.mapLabels as any)._disabled;
   },
 
+  update(options: DecodedObject, _descriptor: LayerItemDescriptor<MapLabelsConfig>, data: MapLabelsConfig) {
+    options.mapLabels = data;
+  },
+
   delete(options: DecodedObject) {
+
     if (options.mapLabels) {
       options.mapLabels = {
         ...options.mapLabels,
