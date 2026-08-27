@@ -67,7 +67,6 @@
   }
 
   async function fetchAndParse(source: { cmid?: number; url?: string }) {
-    console.log('[BuilderGeoJsonConfigModal fetchAndParse:start]', source);
     if (source.cmid && (isNaN(source.cmid) || source.cmid <= 0)) {
       status = 'no-data';
       return;
@@ -85,7 +84,6 @@
     errorMessage = undefined;
     try {
       const geojson = await fetchGeoJsonData(source);
-      console.log('[BuilderGeoJsonConfigModal fetchAndParse:success]', { source, geojsonType: geojson?.type, featuresLength: geojson?.features?.length });
 
       // Analyze properties
       const propsSet = new Set<string>();
@@ -189,7 +187,6 @@
 
   function handleSave(goto = false) {
     const trimmed = rawSourceInput.trim();
-    console.log('[BuilderGeoJsonConfigModal handleSave:start]', { trimmed, goto, draftConfig: $state.snapshot(draftConfig) });
     if (!trimmed) {
       alert('Please enter a valid CMID or URL.');
       return;
@@ -209,7 +206,6 @@
       config.pointSize = $state.snapshot(draftConfig.pointSize);
       config.lineWidth = $state.snapshot(draftConfig.lineWidth);
       config.spike = $state.snapshot(draftConfig.spike);
-      console.log('[BuilderGeoJsonConfigModal handleSave:assigned_url]', { config: $state.snapshot(config) });
     } else {
       const numericCmid = Number(trimmed);
       if (!numericCmid || isNaN(numericCmid) || numericCmid <= 0) {
@@ -224,7 +220,6 @@
       config.pointSize = $state.snapshot(draftConfig.pointSize);
       config.lineWidth = $state.snapshot(draftConfig.lineWidth);
       config.spike = $state.snapshot(draftConfig.spike);
-      console.log('[BuilderGeoJsonConfigModal handleSave:assigned_cmid]', { config: $state.snapshot(config) });
     }
 
     let bounds: [number, number][] | undefined = undefined;
@@ -284,7 +279,6 @@
       }
     }
 
-    console.log('[BuilderGeoJsonConfigModal handleSave:calling_onclose]', { bounds, config: $state.snapshot(config) });
     onclose?.(bounds);
   }
 

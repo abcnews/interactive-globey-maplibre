@@ -24,11 +24,9 @@
 
   async function fetchAndParse(item: GeoJsonConfig) {
     const key = getItemKey(item);
-    console.log('[GeoJsonHandler fetchAndParse:start]', { key, item });
     if (!key) return null;
     try {
       const data = await fetchGeoJsonData({ cmid: item.cmid, url: item.url });
-      console.log('[GeoJsonHandler fetchAndParse:success]', { key, featureCount: data?.features?.length });
       return data;
     } catch (e) {
       console.error(`[GeoJsonHandler] Error loading GeoJSON source ${key}:`, e);
@@ -38,7 +36,6 @@
 
   // Reactively fetch data when config changes
   $effect(() => {
-    console.log('[GeoJsonHandler effect:config]', config);
     config.forEach((item: GeoJsonConfig) => {
       const key = getItemKey(item);
       if (key && !dataMap[key]) {

@@ -47,7 +47,6 @@
   let showAddMenu = $state(false);
 
   function openEditModal(feature: LayerFeatureDefinition<any>, item: LayerItemDescriptor<any>) {
-    console.log('[PropLayers openEditModal]', { kind: feature.kind, item, data: item.data });
     editingItem = {
       feature,
       descriptor: item,
@@ -135,7 +134,6 @@
 
     const maxZ = layers.length > 0 ? Math.max(...layers.map(l => l.zIndex)) + 10 : feature.defaultZIndex;
     const newItem = feature.createDefault({ maxZIndex: maxZ, map });
-    console.log('[PropLayers addLayer]', { kind: feature.kind, newItem, optionsGeoJsonBefore: options.geoJson });
 
     if (feature.interactivePlacement) {
       activePlacement = {
@@ -145,7 +143,6 @@
       };
     } else {
       feature.add(options, newItem);
-      console.log('[PropLayers addLayer:after_add]', { optionsGeoJsonAfter: options.geoJson });
       if (feature.ConfigModal) {
         openEditModal(feature, {
           id: `${feature.kind}-${Date.now()}`,
