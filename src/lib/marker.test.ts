@@ -383,6 +383,22 @@ describe('marker codecs', () => {
       assert.strictEqual(decoded.geoJson![1].url, 'https://live-production.wcms.abc-cdn.net.au/valid.geojson');
       assert.strictEqual(decoded.imageSources?.length, 0);
     });
+
+    it('should encode and decode minimap options', async () => {
+      const input: DecodedObject = {
+        minimap: {
+          enabled: true,
+          bounds: [
+            [144.9631, -37.8136],
+            [151.2093, -33.8688]
+          ]
+        }
+      };
+      const fragment = await markerSchema.encode(input);
+      const decoded = await markerSchema.decode(fragment);
+      assert.strictEqual(decoded.minimap?.enabled, true);
+      assert.strictEqual(decoded.minimap?.bounds?.length, 2);
+    });
   });
 });
 

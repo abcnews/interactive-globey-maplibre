@@ -11,6 +11,7 @@ import type {
   imageSourceItemSchema,
   mapLabelsSchema,
   rasterItemSchema,
+  minimapSchema,
   markerSchema
 } from './schema.ts';
 
@@ -27,6 +28,7 @@ export type IconConfig = Infer<typeof iconItemSchema>;
 export type ImageSourceConfig = Infer<typeof imageSourceItemSchema>;
 export type MapLabelsConfig = Infer<typeof mapLabelsSchema>;
 export type RasterLayerConfig = Infer<typeof rasterItemSchema>;
+export type MinimapConfig = Infer<typeof minimapSchema>;
 
 export type Marker = Infer<typeof markerSchema>;
 export type DecodedObject = Partial<Marker>;

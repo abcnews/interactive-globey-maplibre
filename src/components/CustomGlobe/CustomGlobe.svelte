@@ -9,6 +9,7 @@
   import MapRastersHandler from '../features/MapRaster/MapRastersHandler.svelte';
   import ProjectionHandler from '../features/Projection/ProjectionHandler.svelte';
   import AttributionHandler from '../features/Attribution/AttributionHandler.svelte';
+  import MinimapHandler from '../features/Minimap/MinimapHandler.svelte';
   import { MAX_ZOOM } from '../../lib/constants';
   import { Map } from 'maplibre-gl';
   import 'maplibre-gl/dist/maplibre-gl.css';
@@ -125,6 +126,9 @@
       <GeoJsonHandler config={options.geoJson} />
       <ImageSourcesHandler config={options.imageSources} geoJsonConfig={options.geoJson} />
       <IconsHandler config={options.icons} />
+      {#if options.minimap && options.minimap.enabled !== false}
+        <MinimapHandler bind:config={options.minimap} {interactive} />
+      {/if}
       {@render children?.()}
     {/if}
   </div>

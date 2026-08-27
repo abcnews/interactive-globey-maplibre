@@ -227,6 +227,14 @@ export const rasterItemSchema = object({
 });
 
 /**
+ * Minimap configuration schema.
+ */
+export const minimapSchema = object({
+  enabled: boolean().key('e').default(true),
+  bounds: boundsCodec.key('b').default([])
+}).asBase36();
+
+/**
  * Root Marker Schema for globey-maplibre.
  */
 export const markerSchema = object({
@@ -298,6 +306,7 @@ export const markerSchema = object({
   labelsZIndex: decimal(2).key('lz').optional(),
   mapLabelsZIndex: decimal(2).key('mlz').optional(),
   streetMapZIndex: decimal(2).key('smz').optional(),
+  minimap: minimapSchema.key('mm').optional(),
   fitGlobe: boolean().key('fit').default(false),
   constrainView: boolean().key('cv').default(false),
   attribution: base36String().key('attr').default(''),

@@ -61,6 +61,23 @@
   </div>
 
   <div class="form-row">
+    <label class="checkbox-label">
+      <input
+        type="checkbox"
+        checked={options.minimap?.enabled ?? false}
+        onchange={e => {
+          if (e.currentTarget.checked) {
+            update('minimap', { enabled: true, bounds: options.minimap?.bounds || [] });
+          } else {
+            update('minimap', undefined);
+          }
+        }}
+      />
+      Show minimap
+    </label>
+  </div>
+
+  <div class="form-row">
     <label for="text-attribution" class="control-label">Attribution</label>
     <div class="input-with-clear">
       <input
@@ -123,7 +140,8 @@
     min-height: 1.8rem;
   }
 
-  .radio-group label {
+  .radio-group label,
+  .checkbox-label {
     display: flex;
     align-items: center;
     gap: 0.35rem;
