@@ -22,8 +22,17 @@ describe('customLabelStyle', () => {
     const darkLayers = getCustomLabelLayers(true);
 
     darkLayers.forEach(layer => {
-      expect(layer.paint?.['text-color']).toBe('#FFF');
-      expect(layer.paint?.['text-halo-color']).toBe('rgba(0,0,0,0.8)');
+      expect(layer.paint?.['text-color']).toEqual([
+        'coalesce',
+        ['feature-state', 'textColor'],
+        ['feature-state', 'color'],
+        '#FFF'
+      ]);
+      expect(layer.paint?.['text-halo-color']).toEqual([
+        'coalesce',
+        ['feature-state', 'textHaloColor'],
+        'rgba(0,0,0,0.8)'
+      ]);
     });
   });
 });

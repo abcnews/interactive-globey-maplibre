@@ -64,10 +64,29 @@ export function getCustomLabelLayers(
       visibility: 'visible'
     };
 
-    if (isDark && layer.paint) {
-      layer.paint['text-color'] = SATELLITE_TEXT_COLOUR;
-      layer.paint['text-halo-color'] = SATELLITE_HALO_COLOUR;
-    }
+    const rawTextColor = layer.paint?.['text-color'];
+    const defaultTextColor = isDark
+      ? SATELLITE_TEXT_COLOUR
+      : typeof rawTextColor === 'string'
+        ? rawTextColor
+        : '#000000';
+
+    const rawHaloColor = layer.paint?.['text-halo-color'];
+    const defaultHaloColor = isDark
+      ? SATELLITE_HALO_COLOUR
+      : typeof rawHaloColor === 'string'
+        ? rawHaloColor
+        : 'rgba(255,255,255,0.8)';
+
+    const rawOpacity = layer.paint?.['text-opacity'];
+    const defaultOpacity = typeof rawOpacity === 'number' ? rawOpacity : 1;
+
+    layer.paint = {
+      ...layer.paint,
+      'text-color': ['coalesce', ['feature-state', 'textColor'], ['feature-state', 'color'], defaultTextColor],
+      'text-halo-color': ['coalesce', ['feature-state', 'textHaloColor'], defaultHaloColor],
+      'text-opacity': ['coalesce', ['feature-state', 'textOpacity'], ['feature-state', 'opacity'], defaultOpacity]
+    };
 
     return layer;
   });

@@ -34,7 +34,7 @@ export async function fetchGeoJsonData(source: { cmid?: number | string; url?: s
       throw new Error(`Failed to fetch GeoJSON from ${url}: ${res.status}`);
     }
     rawData = await res.json();
-  } else if (cmid) {
+  } else if (cmid !== undefined && cmid !== null && cmid !== '') {
     const id = typeof cmid === 'string' ? Number(cmid) : cmid;
     if (!id || isNaN(id) || id <= 0) {
       throw new Error(`Invalid CMID provided: ${cmid}`);

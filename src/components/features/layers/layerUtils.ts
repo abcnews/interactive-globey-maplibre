@@ -2,6 +2,7 @@ import type * as maplibregl from 'maplibre-gl';
 import type { ImageSourceConfig, GeoJsonConfig } from '../../../lib/marker';
 
 export * from './layerManager.ts';
+export * from './tweenManager.ts';
 
 /**
  * Generates a stable ID for GeoJSON sources based on the ID or CMID.

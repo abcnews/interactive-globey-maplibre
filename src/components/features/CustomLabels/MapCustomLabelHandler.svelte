@@ -75,7 +75,7 @@
         .filter(label => Boolean(label?.coords))
         .map((label, index) => ({
           type: 'Feature',
-          id: index,
+          id: (label as any).id ?? (label.name ? label.name : index),
           properties: {
             name: label.name || '',
             style: label.style

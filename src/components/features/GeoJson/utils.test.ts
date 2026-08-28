@@ -10,7 +10,12 @@ import {
   EARTH_CIRCUMFERENCE_KM,
   TILE_SIZE_PX
 } from './utils.ts';
+import { fetchDownloadObject } from '../../../lib/fetchDownloadObject.ts';
 import type { GeoJsonConfig } from '../../../lib/marker';
+
+vi.mock('../../../lib/fetchDownloadObject.ts', () => ({
+  fetchDownloadObject: vi.fn()
+}));
 
 describe('GeoJson Utils & Feature State Evaluators', () => {
   describe('generateId', () => {
@@ -327,6 +332,25 @@ describe('GeoJson Utils & Feature State Evaluators', () => {
       assert.strictEqual(result.features.length, 1);
       assert.strictEqual(result.features[0].properties.name, 'Point A');
       assert.strictEqual(result.features[0].id, 0);
+    });
+
+    it('should fetch GeoJSON by CMID using fetchDownloadObject', async () => {
+      const mockGeoJson = {
+        type: 'FeatureCollection',
+        features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] }, properties: {} }]
+      };
+      vi.mocked(fetchDownloadObject).mockResolvedValue(mockGeoJson);
+
+      const result = await fetchGeoJsonData({ cmid: 12345678 });
+      assert.strictEqual(result.type, 'FeatureCollection');
+      assert.strictEqual(result.features.length, 1);
+      assert.strictEqual(result.features[0].id, 0);
+      expect(fetchDownloadObject).toHaveBeenCalledWith(12345678);
+    });
+
+    it('should throw error for invalid CMID', async () => {
+      await expect(fetchGeoJsonData({ cmid: 'invalid' })).rejects.toThrow('Invalid CMID provided');
+      await expect(fetchGeoJsonData({ cmid: 0 })).rejects.toThrow('Invalid CMID provided');
     });
   });
 });
