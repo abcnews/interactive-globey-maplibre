@@ -1,35 +1,45 @@
 <script lang="ts">
   import Scrollyteller from '@abcnews/svelte-scrollyteller';
-  import { markerSchema } from '../../lib/marker';
   import CustomGlobe from '../CustomGlobe/CustomGlobe.svelte';
   import { onMount } from 'svelte';
+  import type { PanelDefinition } from '@abcnews/svelte-scrollyteller';
+  import type { DecodedObject } from '../../lib/marker';
 
-  let { panels } = $props();
-  let options = $state();
+  interface Props {
+    /** Scrollyteller panels with pre-decoded marker options in panel.data */
+    panels: PanelDefinition<DecodedObject>[];
+    /** Optional callback invoked when active marker changes */
+    onMarker?: (marker: DecodedObject) => void;
+  }
 
-  const setConfig = async (d: any) => {
-    const decoded = await markerSchema.decode(d);
-    if (JSON.stringify(options) === JSON.stringify(decoded)) {
-      return;
+  let { panels, onMarker }: Props = $props();
+  let currentPanel = $state(0);
+  let options = $derived(panels[currentPanel]?.data || panels[0]?.data);
+
+  $effect(() => {
+    if (options && onMarker) {
+      onMarker(options);
     }
-    options = decoded;
-  };
+  });
+
+  $effect(() => {
+    if (typeof location !== 'undefined' && location.hash.includes('debug')) {
+      console.log(`[ScrollytellerGlobe] currentPanel: ${currentPanel}, options: ${JSON.stringify(options)}`);
+    }
+  });
 
   let loading = $state(false);
   onMount(() => {
-    markerSchema.decode(panels[0]?.data).then(decodedOptions => {
-      options = decodedOptions;
-    });
-
     // Delay the spinner so only slow devices will see it
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       loading = true;
     }, 1200);
+    return () => clearTimeout(timer);
   });
 </script>
 
 {#if options}
-  <Scrollyteller {panels} onMarker={setConfig} layout={{ resizeInteractive: false }}>
+  <Scrollyteller {panels} bind:currentPanel layout={{ resizeInteractive: false }}>
     <div class="container">
       {#if loading}
         <div class="loading"></div>

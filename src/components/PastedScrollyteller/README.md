@@ -1,0 +1,2 @@
+# PastedScrollyteller
+This component helps with developing a scroll eteller without needing to use the CMS or VPN. It is the spiritual successor of the Google Docs Scrollyteller which has been deprecated. This component should eventually be moved into components-builder.

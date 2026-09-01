@@ -12,6 +12,16 @@
   import IframeUrl from './IframeUrl.svelte';
   import PropScreenshot from './PropScreenshotTool/PropScreenshot.svelte';
   import Favicon from './Favicon/Favicon.svelte';
+  import PastedScrollyteller from '../PastedScrollyteller/PastedScrollyteller.svelte';
+
+  let currentSearch = $state(typeof window !== 'undefined' ? window.location.search : '');
+
+  const isPastedMode = $derived(
+    (() => {
+      const params = new URLSearchParams(currentSearch);
+      return params.get('tool') === 'pasted' || params.get('mode') === 'scrollyteller' || params.has('pasted');
+    })()
+  );
 
   let options = $state<DecodedObject>({});
   let map = $state<maplibregl.Map>();
@@ -68,76 +78,98 @@
   });
 </script>
 
-<svelte:window onhashchange={updateHash} />
+<svelte:window
+  onhashchange={updateHash}
+  onpopstate={() => {
+    currentSearch = window.location.search;
+  }}
+/>
 <Favicon />
 
-{#snippet Viz()}
-  <div class="frame">
-    {#if options.coords}
-      <CustomGlobe interactive={true} {options} preserveDrawingBuffer={true} onLoad={loadedMap => (map = loadedMap)} />
+{#if isPastedMode}
+  <PastedScrollyteller
+    onBackToBuilder={() => {
+      currentSearch = window.location.search;
+    }}
+  />
+{:else}
+  {#snippet Viz()}
+    <div class="frame">
+      {#if options.coords}
+        <CustomGlobe interactive={true} {options} preserveDrawingBuffer={true} onLoad={loadedMap => (map = loadedMap)} />
+      {/if}
+    </div>
+  {/snippet}
+
+  {#snippet Sidebar()}
+    {#if !map || !options}
+      <Loader></Loader>
     {/if}
-  </div>
-{/snippet}
 
-{#snippet Sidebar()}
-  {#if !map || !options}
-    <Loader></Loader>
+    {#if map && options}
+      <PropBase {map} bind:options />
+      <PropCoord
+        {map}
+        onchange={(coords, z) => {
+          options.coords = coords;
+          if (z !== undefined) options.z = z;
+        }}
+        onBoundsChange={bounds => {
+          options.bounds = bounds;
+          if (bounds.length > 0) {
+            options.fitGlobe = false;
+          }
+        }}
+        onFitGlobeChange={fitGlobe => {
+          options.fitGlobe = fitGlobe;
+          if (fitGlobe) {
+            options.bounds = [];
+          }
+        }}
+      />
+      <PropLayers {map} bind:options />
+
+      <MarkerAdmin
+        prefixes={{
+          Mark: '#mark',
+          'Scrollyteller opener': '#scrollytellerNAMEglobey1'
+        }}
+      />
+      <fieldset>
+        <legend>Tools</legend>
+        <div style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem;">
+          <input
+            id="reduced-motion-toggle"
+            type="checkbox"
+            checked={document.body.classList.contains('is-reduced-motion')}
+            onchange={e => {
+              document.body.classList.toggle('is-reduced-motion', e.currentTarget.checked);
+            }}
+          />
+          <label for="reduced-motion-toggle">Reduced motion preview</label>
+        </div>
+        <IframeUrl />
+        <MarkerJson bind:options />
+        <PropScreenshot {map} bind:options />
+        <button
+          type="button"
+          onclick={() => {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tool', 'pasted');
+            window.history.pushState({}, '', url.toString());
+            currentSearch = window.location.search;
+          }}>Pasted scrollyteller</button
+        >
+      </fieldset>
+    {/if}
+    <UpdateChecker />
+  {/snippet}
+
+  {#if options}
+    <BuilderStyleRoot>
+      <BuilderFrame {Viz} {Sidebar} />
+    </BuilderStyleRoot>
   {/if}
-
-  {#if map && options}
-    <PropBase {map} bind:options />
-    <PropCoord
-      {map}
-      onchange={(coords, z) => {
-        options.coords = coords;
-        if (z !== undefined) options.z = z;
-      }}
-      onBoundsChange={bounds => {
-        options.bounds = bounds;
-        if (bounds.length > 0) {
-          options.fitGlobe = false;
-        }
-      }}
-      onFitGlobeChange={fitGlobe => {
-        options.fitGlobe = fitGlobe;
-        if (fitGlobe) {
-          options.bounds = [];
-        }
-      }}
-    />
-    <PropLayers {map} bind:options />
-
-    <MarkerAdmin
-      prefixes={{
-        Mark: '#mark',
-        'Scrollyteller opener': '#scrollytellerNAMEglobey1'
-      }}
-    />
-    <fieldset>
-      <legend>Tools</legend>
-      <div style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem;">
-        <input
-          id="reduced-motion-toggle"
-          type="checkbox"
-          checked={document.body.classList.contains('is-reduced-motion')}
-          onchange={e => {
-            document.body.classList.toggle('is-reduced-motion', e.currentTarget.checked);
-          }}
-        />
-        <label for="reduced-motion-toggle">Reduced motion preview</label>
-      </div>
-      <IframeUrl />
-      <MarkerJson bind:options />
-      <PropScreenshot {map} bind:options />
-    </fieldset>
-  {/if}
-  <UpdateChecker />
-{/snippet}
-
-{#if options}
-  <BuilderStyleRoot>
-    <BuilderFrame {Viz} {Sidebar} />
-  </BuilderStyleRoot>
 {/if}
 
 <style lang="scss">
