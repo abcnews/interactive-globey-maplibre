@@ -14,17 +14,14 @@
 
   let { panels, onMarker }: Props = $props();
   let currentPanel = $state(0);
+  let virtualPanel = $state(-1);
+  let panelPct = $state(0);
+  let scrollPct = $state(0);
   let options = $derived(panels[currentPanel]?.data || panels[0]?.data);
 
   $effect(() => {
     if (options && onMarker) {
       onMarker(options);
-    }
-  });
-
-  $effect(() => {
-    if (typeof location !== 'undefined' && location.hash.includes('debug')) {
-      console.log(`[ScrollytellerGlobe] currentPanel: ${currentPanel}, options: ${JSON.stringify(options)}`);
     }
   });
 
@@ -39,12 +36,21 @@
 </script>
 
 {#if options}
-  <Scrollyteller {panels} bind:currentPanel layout={{ resizeInteractive: false }}>
+  <Scrollyteller {panels} bind:currentPanel bind:virtualPanel bind:panelPct bind:scrollPct layout={{ resizeInteractive: false }}>
     <div class="container">
       {#if loading}
         <div class="loading"></div>
       {/if}
-      <CustomGlobe {options} rootElStyle="width:100%;height:100%" interactive={false} />
+      <CustomGlobe
+        {options}
+        {panels}
+        {currentPanel}
+        {virtualPanel}
+        {panelPct}
+        {scrollPct}
+        rootElStyle="width:100%;height:100%"
+        interactive={false}
+      />
     </div>
   </Scrollyteller>
 {/if}

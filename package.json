@@ -35,7 +35,6 @@
     "@types/throttle-debounce": "^5.0.2",
     "@types/topojson-client": "^3.1.5",
     "async": "^3.2.6",
-    "canvas": "^2.11.2",
     "d3-geo": "^3.1.1",
     "geotiff": "^3.0.0",
     "latlon-geohash": "^2.0.0",
@@ -61,8 +60,9 @@
     "@abcnews/components-builder": "^0.0.19",
     "@abcnews/env-utils": "^6.0.0",
     "@abcnews/mount-utils": "^3.0.1",
-    "@abcnews/svelte-scrollyteller": "^5.0.0-next.1",
-    "@abcnews/terminus-fetch": "^7.1.0"
+    "@abcnews/svelte-scrollyteller": "^5.0.0-next.2",
+    "@abcnews/terminus-fetch": "^7.1.0",
+    "d3-interpolate": "^3.0.1"
   },
   "contributors": [
     {

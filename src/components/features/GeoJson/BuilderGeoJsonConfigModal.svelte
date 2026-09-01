@@ -537,10 +537,4 @@
     font-size: 0.75rem;
     color: var(--text-light, #888);
   }
-
-  .help-text code {
-    background: rgba(255, 255, 255, 0.1);
-    padding: 0.1rem 0.25rem;
-    border-radius: 2px;
-  }
 </style>

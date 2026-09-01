@@ -1,5 +1,6 @@
 <script lang="ts">
   import PanZoomHandler from '../features/PanZoom/PanZoomHandler.svelte';
+  import PanZoomScrollHandler from '../features/PanZoom/PanZoomScrollHandler.svelte';
   import MapVectorHandler from '../features/MapVector/MapVectorHandler.svelte';
   import MapCustomLabelHandler from '../features/CustomLabels/MapCustomLabelHandler.svelte';
   import GeoJsonHandler from '../features/GeoJson/GeoJsonHandler.svelte';
@@ -15,6 +16,7 @@
   import 'maplibre-gl/dist/maplibre-gl.css';
   import { isDarkBase } from './mapStyle/utils';
   import { onMount, setContext } from 'svelte';
+  import type { PanelDefinition } from '@abcnews/svelte-scrollyteller';
 
   type Props = {
     rootElStyle?: string;
@@ -22,9 +24,26 @@
     onLoad?: (map: Map) => void;
     options: DecodedObject;
     preserveDrawingBuffer?: boolean;
+    panels?: PanelDefinition<DecodedObject>[];
+    currentPanel?: number;
+    virtualPanel?: number;
+    panelPct?: number;
+    scrollPct?: number;
     children?: import('svelte').Snippet;
   };
-  let { rootElStyle, interactive, onLoad, options, preserveDrawingBuffer = false, children }: Props = $props();
+  let {
+    rootElStyle,
+    interactive,
+    onLoad,
+    options,
+    preserveDrawingBuffer = false,
+    panels,
+    currentPanel,
+    virtualPanel,
+    panelPct,
+    scrollPct,
+    children
+  }: Props = $props();
 
   let mapContainer = $state<HTMLDivElement>();
   let mapInstance = $state<{ map: Map | null }>({ map: null });
@@ -93,14 +112,19 @@
     {#if mapInstance.map}
       <AttributionHandler attribution={options.attribution} base={options.base} hideOsm={options.hideOsm} />
       <ProjectionHandler projection={options.projection} />
-      <PanZoomHandler
-        coords={options.coords}
-        z={options.z}
-        bounds={options.bounds}
-        fitGlobe={options.fitGlobe}
-        constrainView={options.constrainView}
-        animationDuration={options.animationDuration}
-      />
+      {#if panels && panelPct !== undefined}
+        <PanZoomScrollHandler {panels} currentPanel={currentPanel ?? 0} {virtualPanel} {panelPct} />
+      {:else}
+        <PanZoomHandler
+          coords={options.coords}
+          z={options.z}
+          bounds={options.bounds}
+          fitGlobe={options.fitGlobe}
+          constrainView={options.constrainView}
+          animationDuration={options.animationDuration}
+        />
+      {/if}
+
 
       <MapVectorHandler
         base={options.base}

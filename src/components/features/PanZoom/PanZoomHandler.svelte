@@ -3,7 +3,7 @@
   import { disableMapAnimation, prefersReducedMotion } from '../../../lib/stores';
   import { getContext } from 'svelte';
   import type { PanZoomProps } from './types.ts';
-  import { calculateTargetView, calculateGlobeFitZoom } from './utils.ts';
+  import { resolvePanelTargetView, calculateTargetView } from './utils.ts';
 
   const mapRoot = getContext<{ map: maplibregl.Map }>('mapInstance');
   const { coords, bounds, z, fitGlobe = false, constrainView, animationDuration = 2000 }: PanZoomProps = $props();
@@ -34,17 +34,17 @@
     const map = mapRoot.map;
     if (!map || !fitGlobe) return;
 
-    const targetZoom = calculateGlobeFitZoom(map, coords);
+    const target = resolvePanelTargetView(map, { fitGlobe, coords });
     const currentCenter = map.getCenter();
     const currentZoom = map.getZoom();
 
     const needsCentering =
       coords && (Math.abs(currentCenter.lng - coords[0]) > 0.0001 || Math.abs(currentCenter.lat - coords[1]) > 0.0001);
 
-    if (Math.abs(currentZoom - targetZoom) > 0.01 || needsCentering) {
+    if (Math.abs(currentZoom - target.zoom) > 0.01 || needsCentering) {
       map.flyTo({
-        center: coords || currentCenter,
-        zoom: targetZoom,
+        center: target.center,
+        zoom: target.zoom,
         duration: animationDurationWithReducedMotion,
         essential: true
       });
@@ -98,29 +98,13 @@
 
     if (fitGlobe) {
       applyGlobeFit();
-    } else if (bounds && bounds.length > 0) {
-      const container = map.getContainer();
-      const target = calculateTargetView(
-        bounds,
-        container.clientWidth,
-        container.clientHeight,
-        constrainView ? 'fill' : 'fit'
-      );
-
-      if (target) {
-        map.flyTo({
-          center: target.center,
-          zoom: target.zoom,
-          duration: animationDurationWithReducedMotion,
-          essential: true
-        });
-      }
-    } else if (coords) {
+    } else if ((bounds && bounds.length > 0) || coords) {
+      const target = resolvePanelTargetView(map, { bounds, coords, z, constrainView });
       map.flyTo({
-        center: coords,
-        essential: true,
+        center: target.center,
+        zoom: target.zoom,
         duration: animationDurationWithReducedMotion,
-        zoom: z
+        essential: true
       });
     }
 
