@@ -12,11 +12,14 @@
   import AttributionHandler from '../features/Attribution/AttributionHandler.svelte';
   import MinimapHandler from '../features/Minimap/MinimapHandler.svelte';
   import { MAX_ZOOM } from '../../lib/constants';
-  import { Map } from 'maplibre-gl';
+  import { Map, setWorkerUrl } from 'maplibre-gl';
+  import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
   import 'maplibre-gl/dist/maplibre-gl.css';
   import { isDarkBase } from './mapStyle/utils';
   import { onMount, setContext } from 'svelte';
   import type { PanelDefinition } from '@abcnews/svelte-scrollyteller';
+
+  setWorkerUrl(workerUrl);
 
   type Props = {
     rootElStyle?: string;

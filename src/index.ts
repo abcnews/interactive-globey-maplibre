@@ -9,17 +9,13 @@ import acto from '@abcnews/alternating-case-to-object';
 import { markerSchema } from './lib/marker';
 
 const MARKER_NAME = 'globey';
-console.log('awaiting the odd duck');
 
 await whenOdysseyLoaded;
-console.log('quack');
 
 // Multiple scrollytellers are allowed in a page, providing they have a unique id.
 const mounts = selectMounts('scrollytellerNAME' + MARKER_NAME, {
   markAsUsed: false
 });
-
-console.log({ mounts });
 
 await Promise.all(
   mounts.map(async mountEl => {
@@ -61,7 +57,6 @@ const [staticMountEl] = selectMounts('staticglobey');
 
 if (staticMountEl) {
   const staticMountProps = await markerSchema.decode(acto(window.location.hash.slice(1)));
-  console.log({ staticMountProps });
   mount(CustomGlobe, {
     target: staticMountEl,
     props: { options: staticMountProps, rootElStyle: 'height: 100dvh; width: 100%;' }
