@@ -4,6 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>globey-maplibre Builder</title>
+    <script type="module">
+      window.__ODYSSEY__ = { __mock_odyssey: true };
+      window.dispatchEvent(new CustomEvent('odyssey:api'));
+    </script>
     <script type="module" src="/src/index.ts"></script>
     <style type="text/css">
       body {
@@ -28,10 +32,5 @@
   </head>
   <body>
     <div data-mount id="builder"></div>
-
-    <script type="module">
-      window.__ODYSSEY__ = { __mock_odyssey: true };
-      window.dispatchEvent(new CustomEvent('odyssey:api'));
-    </script>
   </body>
 </html>
