@@ -43,9 +43,7 @@
   });
 
   /** Mouse wheel property tween */
-  const WHEEL_TWEEN = { duration: 150, easing: cubicOut };
-  /** About the number of pixels for a scroll wheel chunk. Trackpads are much more granular. We should tween above this. */
-  const APPROX_WHEEL_CHUNK = 13;
+  const WHEEL_TWEEN = { duration: 350, easing: cubicOut };
 
   // Directly index start and target views using pre-clamped currentPanel
   let startView = $derived(views[currentPanel]);
@@ -66,8 +64,10 @@
         ? { center: startView.center, zoom: startView.zoom }
         : interpolator(panelPct);
 
-    const isWheel = !isReducedMotionActive && Math.abs(scrollDelta) >= APPROX_WHEEL_CHUNK;
-    const opts = WHEEL_TWEEN;
+    /** touch decives like phones/tablets, excluding devices like Windows touchscreens */
+    const isTouchDevice = window.matchMedia('(pointer: coarse) and (hover: none)').matches;
+    const isWheel = !isReducedMotionActive && isTouchDevice;
+    const opts = isWheel ? WHEEL_TWEEN : { duration: 0 };
 
     zoomTween.set(target.zoom, opts);
     lngTween.set(target.center[0], opts);
