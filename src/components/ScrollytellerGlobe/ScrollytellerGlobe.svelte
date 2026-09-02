@@ -34,6 +34,7 @@
     }, 1200);
     return () => clearTimeout(timer);
   });
+  console.log('component mountising');
 </script>
 
 {#if options}
