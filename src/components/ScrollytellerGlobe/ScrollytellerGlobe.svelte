@@ -17,6 +17,7 @@
   let virtualPanel = $state(-1);
   let panelPct = $state(0);
   let scrollPct = $state(0);
+  let scrollDelta = $state(-6);
   let options = $derived(panels[currentPanel]?.data || panels[0]?.data);
 
   $effect(() => {
@@ -36,7 +37,15 @@
 </script>
 
 {#if options}
-  <Scrollyteller {panels} bind:currentPanel bind:virtualPanel bind:panelPct bind:scrollPct layout={{ resizeInteractive: false }}>
+  <Scrollyteller
+    {panels}
+    bind:currentPanel
+    bind:virtualPanel
+    bind:panelPct
+    bind:scrollPct
+    bind:scrollDelta
+    layout={{ resizeInteractive: false }}
+  >
     <div class="container">
       {#if loading}
         <div class="loading"></div>
@@ -48,6 +57,7 @@
         {virtualPanel}
         {panelPct}
         {scrollPct}
+        {scrollDelta}
         rootElStyle="width:100%;height:100%"
         interactive={false}
       />

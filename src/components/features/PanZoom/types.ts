@@ -29,7 +29,6 @@ export interface PanZoomScrollProps {
   virtualPanel?: number;
   /** Progress through the active panel (0.0 to 1.0) */
   panelPct: number;
+  /** number of pixels in the most recent scroll */
+  scrollDelta?: number;
 }
-
-
-

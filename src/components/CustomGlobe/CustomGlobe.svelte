@@ -29,6 +29,7 @@
     virtualPanel?: number;
     panelPct?: number;
     scrollPct?: number;
+    scrollDelta?: number;
     children?: import('svelte').Snippet;
   };
   let {
@@ -42,6 +43,7 @@
     virtualPanel,
     panelPct,
     scrollPct,
+    scrollDelta,
     children
   }: Props = $props();
 
@@ -113,7 +115,7 @@
       <AttributionHandler attribution={options.attribution} base={options.base} hideOsm={options.hideOsm} />
       <ProjectionHandler projection={options.projection} />
       {#if panels && panelPct !== undefined}
-        <PanZoomScrollHandler {panels} currentPanel={currentPanel ?? 0} {virtualPanel} {panelPct} />
+        <PanZoomScrollHandler {panels} currentPanel={currentPanel ?? 0} {virtualPanel} {panelPct} {scrollDelta} />
       {:else}
         <PanZoomHandler
           coords={options.coords}
@@ -124,7 +126,6 @@
           animationDuration={options.animationDuration}
         />
       {/if}
-
 
       <MapVectorHandler
         base={options.base}
