@@ -1,19 +1,18 @@
 <script lang="ts">
   import { Modal } from '@abcnews/components-builder';
-  import type { DecodedObject } from '../../lib/marker';
+  import { options } from './store';
 
-  let { options = $bindable() } = $props<{ options: DecodedObject }>();
   let isOpen = $state(false);
   let editValue = $state('');
 
   function open() {
-    editValue = JSON.stringify(options, null, 2);
+    editValue = JSON.stringify($options, null, 2);
     isOpen = true;
   }
 
   function apply() {
     try {
-      options = JSON.parse(editValue);
+      $options = JSON.parse(editValue);
       isOpen = false;
     } catch (e: any) {
       alert('Invalid JSON: ' + e.message);

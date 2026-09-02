@@ -1,8 +1,9 @@
 <script lang="ts">
   import type { DecodedObject } from '../../../lib/marker';
   import type * as maplibregl from 'maplibre-gl';
+  import { options } from '../store';
 
-  let { map, options = $bindable() }: { map: maplibregl.Map; options: DecodedObject } = $props();
+  let { map }: { map?: maplibregl.Map } = $props();
 
   async function takeScreenshot() {
     if (!map) {
@@ -20,7 +21,10 @@
         'Switch to 2D map?\n\nThis is highly recommended if you intend to use this as georectified imagery. 2D mode ensures the linear geographic bounds match the image corners exactly.'
       );
       if (shouldSwitch) {
-        options.projection = 'mercator';
+        $options = {
+          ...$options,
+          projection: 'mercator'
+        };
         // Wait for the next idle event after the projection change
         await new Promise(resolve => map.once('idle', resolve));
       }

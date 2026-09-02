@@ -426,7 +426,7 @@ describe('marker codecs', () => {
       const input: DecodedObject = {
         rasterLayers: [
           {
-            url: 'invalid-url',
+            url: 'https://preview-production.wcms.abc-cdn.net.au/invalid.png',
             maxZoom: 7,
             tileSize: 256
           },

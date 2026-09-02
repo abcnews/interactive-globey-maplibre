@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Component } from 'svelte';
   import type { Map as MapLibreMap } from 'maplibre-gl';
-  import type { DecodedObject } from '../../../lib/marker';
+  import { options } from '../store';
   import {
     layerFeatureRegistry,
     layerAddMenuRegistry,
@@ -17,13 +17,11 @@
   import { Plus } from 'svelte-bootstrap-icons';
 
   interface Props {
-    /** Marker options decoded object bound to the builder. */
-    options: DecodedObject;
     /** MapLibre Map instance for bounds fitting and interactions. */
     map?: MapLibreMap;
   }
 
-  let { options = $bindable(), map }: Props = $props();
+  let { map }: Props = $props();
 
   /** The item currently being edited in a modal dialog */
   let editingItem = $state<{
@@ -74,13 +72,13 @@
     })[] = [];
 
     layerFeatureRegistry.forEach(feature => {
-      const items = feature.getItems(options);
+      const items = feature.getItems($options);
       items.forEach(item => {
         const itemDescriptorWithFeature = { ...item, feature };
         const rawButtons =
           item.buttons ||
-          (typeof feature.buttons === 'function' ? feature.buttons(item, options) : feature.buttons) ||
-          getDefaultLayerButtons(feature, item, options);
+          (typeof feature.buttons === 'function' ? feature.buttons(item, $options) : feature.buttons) ||
+          getDefaultLayerButtons(feature, item, $options);
 
         list.push({
           ...itemDescriptorWithFeature,
@@ -98,15 +96,10 @@
 
     newItems.forEach((item, idx) => {
       const assignedZ = baseZ + (total - 1 - idx) * 10;
-      item.feature.setZIndex(options, item, assignedZ);
+      item.feature.setZIndex($options, item, assignedZ);
     });
-    options = {
-      ...options,
-      rasterLayers: options.rasterLayers ? [...options.rasterLayers] : [],
-      imageSources: options.imageSources ? [...options.imageSources] : [],
-      geoJson: options.geoJson ? [...options.geoJson] : [],
-      icons: options.icons ? [...options.icons] : []
-    };
+
+    $options = $state.snapshot($options);
   }
 
   function handleAddMenuItem(menuItem: LayerAddMenuItem) {
@@ -117,7 +110,7 @@
       activeCustomModal = menuItem.CustomModal;
     } else if (menuItem.onSelect) {
       menuItem.onSelect({
-        options,
+        options: $options,
         map,
         openModal: (modal: Component<any>) => {
           activeCustomModal = modal;
@@ -142,7 +135,8 @@
         item: newItem
       };
     } else {
-      feature.add(options, newItem);
+      feature.add($options, newItem);
+      $options = $state.snapshot($options);
       if (feature.ConfigModal) {
         openEditModal(feature, {
           id: `${feature.kind}-${Date.now()}`,
@@ -171,10 +165,12 @@
     if (activePlacement.feature) {
       const { feature, item } = activePlacement;
       feature.interactivePlacement?.onMapClick(coords, item);
-      feature.add(options, item);
+      feature.add($options, item);
 
       const placementMaxZ = layers.length > 0 ? Math.max(...layers.map(l => l.zIndex)) + 10 : feature.defaultZIndex;
       activePlacement = null;
+
+      $options = $state.snapshot($options);
 
       if (feature.ConfigModal) {
         openEditModal(feature, {
@@ -215,21 +211,15 @@
       const { feature, descriptor, data } = editingItem;
       const currentData = editingItem.data ?? descriptor.data ?? data;
 
-      if (feature.isValid && !feature.isValid(currentData, options)) {
-        feature.delete(options, descriptor);
+      if (feature.isValid && !feature.isValid(currentData, $options)) {
+        feature.delete($options, descriptor);
       } else if (feature.update) {
-        feature.update(options, descriptor, currentData);
+        feature.update($options, descriptor, currentData);
       }
     }
 
     // Always trigger reactivity on options so the hash and other components update immediately
-    options = {
-      ...options,
-      rasterLayers: options.rasterLayers ? [...options.rasterLayers] : [],
-      imageSources: options.imageSources ? [...options.imageSources] : [],
-      geoJson: options.geoJson ? [...options.geoJson] : [],
-      icons: options.icons ? [...options.icons] : []
-    };
+    $options = $state.snapshot($options);
     editingItem = null;
   }
 
@@ -245,7 +235,7 @@
       {#if showAddMenu}
         <div class="add-menu">
           {#each layerAddMenuRegistry as menuItem (menuItem.id)}
-            {#if !menuItem.canAdd || menuItem.canAdd(options)}
+            {#if !menuItem.canAdd || menuItem.canAdd($options)}
               <button type="button" onclick={() => handleAddMenuItem(menuItem)}>
                 <menuItem.icon />
                 {menuItem.label}
@@ -288,16 +278,17 @@
             title={btn.title}
             onclick={() => {
               btn.onclick({
-                options,
+                options: $options,
                 item,
                 map,
                 startInteractivePlacement,
                 openModal: () => {
-                  const currentItems = item.feature.getItems(options);
+                  const currentItems = item.feature.getItems($options);
                   const matchingItem = currentItems.find(i => i.id === item.id) || currentItems[0] || item;
                   openEditModal(item.feature, matchingItem);
                 }
               });
+              $options = $state.snapshot($options);
             }}
           >
             <btn.icon />
@@ -309,7 +300,7 @@
 
   {#if editingItem?.feature.ConfigModal}
     {#if editingItem.feature.kind === 'customLabels'}
-      <editingItem.feature.ConfigModal bind:config={options.labels} {map} onclose={handleClose} />
+      <editingItem.feature.ConfigModal bind:config={$options.labels} {map} onclose={handleClose} />
     {:else}
       <editingItem.feature.ConfigModal bind:config={editingItem.data} {map} onclose={handleClose} />
     {/if}
@@ -318,19 +309,13 @@
   {#if activeCustomModal}
     {@const CustomModalComponent = activeCustomModal}
     <CustomModalComponent
-      bind:options
+      bind:options={$options}
       {map}
       onclose={(bounds?: [number, number][]) => {
         if (bounds && map) {
           safeFitBounds(map, bounds, { padding: 50 });
         }
-        options = {
-          ...options,
-          rasterLayers: options.rasterLayers ? [...options.rasterLayers] : [],
-          imageSources: options.imageSources ? [...options.imageSources] : [],
-          geoJson: options.geoJson ? [...options.geoJson] : [],
-          icons: options.icons ? [...options.icons] : []
-        };
+        $options = $state.snapshot($options);
         activeCustomModal = null;
       }}
     />

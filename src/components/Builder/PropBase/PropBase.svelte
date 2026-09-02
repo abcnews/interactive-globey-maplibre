@@ -1,13 +1,14 @@
 <script lang="ts">
   import type { DecodedObject } from '../../../lib/marker';
   import type * as maplibregl from 'maplibre-gl';
+  import { options } from '../store';
   import { X } from 'svelte-bootstrap-icons';
 
-  let { options = $bindable(), map } = $props<{ options: DecodedObject; map: maplibregl.Map }>();
+  let { map } = $props<{ map?: maplibregl.Map }>();
 
   function update(key: keyof DecodedObject, value: any) {
-    options = {
-      ...options,
+    $options = {
+      ...$options,
       [key]: value
     };
   }
@@ -25,7 +26,7 @@
             type="radio"
             name="projection"
             value="globe"
-            checked={options.projection === 'globe' || !options.projection}
+            checked={$options.projection === 'globe' || !$options.projection}
             onchange={() => update('projection', 'globe')}
           />
           Globe
@@ -35,7 +36,7 @@
             type="radio"
             name="projection"
             value="mercator"
-            checked={options.projection === 'mercator'}
+            checked={$options.projection === 'mercator'}
             onchange={() => update('projection', 'mercator')}
           />
           Flat
@@ -50,7 +51,7 @@
         type="text"
         inputmode="numeric"
         pattern="[0-9]*"
-        value={options.animationDuration ?? ''}
+        value={$options.animationDuration ?? ''}
         oninput={e => {
           const val = e.currentTarget.value.trim();
           update('animationDuration', val ? Number(val) : undefined);
@@ -64,10 +65,10 @@
     <label class="checkbox-label">
       <input
         type="checkbox"
-        checked={options.minimap?.enabled ?? false}
+        checked={$options.minimap?.enabled ?? false}
         onchange={e => {
           if (e.currentTarget.checked) {
-            update('minimap', { enabled: true, bounds: options.minimap?.bounds || [] });
+            update('minimap', { enabled: true, bounds: $options.minimap?.bounds || [] });
           } else {
             update('minimap', undefined);
           }
@@ -84,10 +85,10 @@
         id="text-attribution"
         type="text"
         placeholder="e.g. Map data © ..."
-        value={options.attribution || ''}
+        value={$options.attribution || ''}
         oninput={e => update('attribution', e.currentTarget.value)}
       />
-      {#if options.attribution}
+      {#if $options.attribution}
         <button
           type="button"
           class="btn-icon clear-btn"

@@ -106,9 +106,9 @@
     {/if}
 
     {#if map && $options}
-      <PropBase {map} bind:options={$options} />
+      <PropBase {map} />
       <PropCoord {map} />
-      <PropLayers {map} bind:options={$options} />
+      <PropLayers {map} />
 
       <MarkerAdmin
         prefixes={{
@@ -130,8 +130,8 @@
           <label for="reduced-motion-toggle">Reduced motion preview</label>
         </div>
         <IframeUrl />
-        <MarkerJson bind:options={$options} />
-        <PropScreenshot {map} bind:options={$options} />
+        <MarkerJson />
+        <PropScreenshot {map} />
         <button
           type="button"
           onclick={() => {
