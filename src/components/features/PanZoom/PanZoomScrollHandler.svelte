@@ -66,7 +66,7 @@
 
     /** touch decives like phones/tablets, excluding devices like Windows touchscreens */
     const isTouchDevice = window.matchMedia('(pointer: coarse) and (hover: none)').matches;
-    const isWheel = !isReducedMotionActive && isTouchDevice;
+    const isWheel = !isReducedMotionActive && !isTouchDevice;
     const opts = isWheel ? WHEEL_TWEEN : { duration: 0 };
 
     zoomTween.set(target.zoom, opts);
