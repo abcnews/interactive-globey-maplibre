@@ -399,6 +399,49 @@ describe('marker codecs', () => {
       assert.strictEqual(decoded.minimap?.enabled, true);
       assert.strictEqual(decoded.minimap?.bounds?.length, 2);
     });
+
+    it('should encode and decode rasterLayers options', async () => {
+      const input: DecodedObject = {
+        rasterLayers: [
+          {
+            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            maxZoom: 19,
+            tileSize: 256,
+            attribution: 'OpenStreetMap',
+            zIndex: 100
+          }
+        ]
+      };
+      const fragment = await markerSchema.encode(input);
+      const decoded = await markerSchema.decode(fragment);
+      assert.strictEqual(decoded.rasterLayers?.length, 1);
+      assert.strictEqual(decoded.rasterLayers?.[0].url, 'https://tile.openstreetmap.org/{z}/{x}/{y}.png');
+      assert.strictEqual(decoded.rasterLayers?.[0].maxZoom, 19);
+      assert.strictEqual(decoded.rasterLayers?.[0].tileSize, 256);
+      assert.strictEqual(decoded.rasterLayers?.[0].attribution, 'OpenStreetMap');
+      assert.strictEqual(decoded.rasterLayers?.[0].zIndex, 100);
+    });
+
+    it('should filter out invalid rasterLayer URLs during encode', async () => {
+      const input: DecodedObject = {
+        rasterLayers: [
+          {
+            url: 'invalid-url',
+            maxZoom: 7,
+            tileSize: 256
+          },
+          {
+            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            maxZoom: 7,
+            tileSize: 256
+          }
+        ]
+      };
+      const fragment = await markerSchema.encode(input);
+      const decoded = await markerSchema.decode(fragment);
+      assert.strictEqual(decoded.rasterLayers?.length, 1);
+      assert.strictEqual(decoded.rasterLayers?.[0].url, 'https://tile.openstreetmap.org/{z}/{x}/{y}.png');
+    });
   });
 });
 

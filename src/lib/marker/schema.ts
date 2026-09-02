@@ -224,7 +224,7 @@ export const rasterItemSchema = object({
   tileSize: decimal().key('ts').default(256),
   attribution: base36String().key('a').default(''),
   zIndex: decimal(2).key('z').optional()
-});
+}).asArray();
 
 /**
  * Minimap configuration schema.
