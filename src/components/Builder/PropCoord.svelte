@@ -11,15 +11,9 @@
   import { disableMapAnimation } from '../../lib/stores';
 
   let {
-    map,
-    onchange,
-    onBoundsChange,
-    onFitGlobeChange
+    map
   }: {
     map: maplibregl.Map;
-    onchange?: (coords: [number, number], z?: number) => void;
-    onBoundsChange?: (bounds: [number, number][]) => void;
-    onFitGlobeChange?: (fitGlobe: boolean) => void;
   } = $props();
 
   let inputValue = $state('');
@@ -49,16 +43,11 @@
 
     if (mode === 'fit-globe') {
       $options = { ...$options, fitGlobe: true, bounds: [] };
-      onFitGlobeChange?.(true);
-      onBoundsChange?.([]);
     } else if (mode === 'fit-bounds') {
       $options = { ...$options, fitGlobe: false };
-      onFitGlobeChange?.(false);
       // Note: We don't clear bounds here so users can switch into fit-bounds and keep their points.
     } else {
       $options = { ...$options, fitGlobe: false, bounds: [] };
-      onFitGlobeChange?.(false);
-      onBoundsChange?.([]);
     }
   }
 
@@ -91,8 +80,6 @@
       bounds: [],
       fitGlobe: false
     };
-    onBoundsChange?.([]);
-    onFitGlobeChange?.(false);
 
     // Switch to pan-zoom mode UI
     navMode = 'pan-zoom';
@@ -110,32 +97,6 @@
     if (document.activeElement !== inputElement) {
       inputValue = formatted;
     }
-  });
-
-  // Sync map -> store
-  $effect(() => {
-    if (!map || navMode !== 'pan-zoom') {
-      return;
-    }
-
-    const handler = (e: any) => {
-      // Only update coord after the user is finished with it (user interaction)
-      if (!e.originalEvent) {
-        return;
-      }
-
-      const center = e.target.getCenter();
-      const newCoords: [number, number] = [center.lng, center.lat];
-      $options = {
-        ...$options,
-        coords: newCoords,
-        z: e.target.getZoom()
-      };
-      onchange?.(newCoords, e.target.getZoom());
-    };
-
-    map.on('moveend', handler);
-    return () => map.off('moveend', handler);
   });
 
   /**
@@ -194,7 +155,6 @@
       coords,
       z: newZ
     };
-    onchange?.(coords, newZ);
 
     if (!smooth) {
       setTimeout(() => {
@@ -340,7 +300,7 @@
         The map will automatically zoom to fit the full globe circle in the viewport.
       </p>
     {:else if navMode === 'fit-bounds'}
-      <PropBounds {map} onchange={onBoundsChange} {onFitGlobeChange} />
+      <PropBounds {map} />
     {/if}
   </fieldset>
 </form>

@@ -4,7 +4,7 @@
   import { markerSchema, type DecodedObject } from '../../lib/marker';
   import CustomGlobe from '../CustomGlobe/CustomGlobe.svelte';
   import type * as maplibregl from 'maplibre-gl';
-  import { options as optionsStore } from './store';
+  import { options } from './store';
   import PropCoord from './PropCoord.svelte';
   import PropBase from './PropBase/PropBase.svelte';
   import PropLayers from './Layers/PropLayers.svelte';
@@ -23,20 +23,15 @@
     })()
   );
 
-  let options = $state<DecodedObject>({});
   let map = $state<maplibregl.Map>();
-
-  $effect(() => {
-    $optionsStore = options;
-  });
 
   let lastEncodedHash = '';
 
   $effect(() => {
-    if (!options) {
+    if (!$options) {
       return;
     }
-    const currentOptions = $state.snapshot(options);
+    const currentOptions = $state.snapshot($options);
     markerSchema.encode(currentOptions).then(hash => {
       const newHash = hash || '';
       if (window.location.hash.slice(1) !== newHash) {
@@ -53,18 +48,16 @@
     }
     lastEncodedHash = currentHash;
     const urlOptions = await markerSchema.decode(currentHash);
-    options = urlOptions;
+    $options = urlOptions;
   }
 
-
   onMount(updateHash);
-
 
   $effect(() => {
     if (!map) {
       return;
     }
-    map.on('moveend', e => {
+    const onMoveEnd = (e: any) => {
       // Only update options if the move was triggered by user interaction
       // Cast to any because builderInitiated is a custom property we added
       if (!e.originalEvent && !(e as any).builderInitiated) {
@@ -72,9 +65,15 @@
       }
 
       const center = e.target.getCenter();
-      options.coords = [center.lng, center.lat];
-      options.z = e.target.getZoom();
-    });
+      $options = {
+        ...$options,
+        coords: [center.lng, center.lat],
+        z: e.target.getZoom()
+      };
+    };
+
+    map.on('moveend', onMoveEnd);
+    return () => map?.off('moveend', onMoveEnd);
   });
 </script>
 
@@ -95,39 +94,21 @@
 {:else}
   {#snippet Viz()}
     <div class="frame">
-      {#if options.coords}
-        <CustomGlobe interactive={true} {options} preserveDrawingBuffer={true} onLoad={loadedMap => (map = loadedMap)} />
+      {#if $options.coords}
+        <CustomGlobe interactive={true} options={$options} preserveDrawingBuffer={true} onLoad={loadedMap => (map = loadedMap)} />
       {/if}
     </div>
   {/snippet}
 
   {#snippet Sidebar()}
-    {#if !map || !options}
+    {#if !map || !$options}
       <Loader></Loader>
     {/if}
 
-    {#if map && options}
-      <PropBase {map} bind:options />
-      <PropCoord
-        {map}
-        onchange={(coords, z) => {
-          options.coords = coords;
-          if (z !== undefined) options.z = z;
-        }}
-        onBoundsChange={bounds => {
-          options.bounds = bounds;
-          if (bounds.length > 0) {
-            options.fitGlobe = false;
-          }
-        }}
-        onFitGlobeChange={fitGlobe => {
-          options.fitGlobe = fitGlobe;
-          if (fitGlobe) {
-            options.bounds = [];
-          }
-        }}
-      />
-      <PropLayers {map} bind:options />
+    {#if map && $options}
+      <PropBase {map} bind:options={$options} />
+      <PropCoord {map} />
+      <PropLayers {map} bind:options={$options} />
 
       <MarkerAdmin
         prefixes={{
@@ -149,8 +130,8 @@
           <label for="reduced-motion-toggle">Reduced motion preview</label>
         </div>
         <IframeUrl />
-        <MarkerJson bind:options />
-        <PropScreenshot {map} bind:options />
+        <MarkerJson bind:options={$options} />
+        <PropScreenshot {map} bind:options={$options} />
         <button
           type="button"
           onclick={() => {
@@ -165,7 +146,7 @@
     <UpdateChecker />
   {/snippet}
 
-  {#if options}
+  {#if $options}
     <BuilderStyleRoot>
       <BuilderFrame {Viz} {Sidebar} />
     </BuilderStyleRoot>

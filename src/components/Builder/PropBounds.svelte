@@ -6,13 +6,9 @@
   import { addLayerWithZIndex, removeLayerWithZIndex, Z_INDEX_UI_OVERLAYS } from '../features';
 
   let {
-    map,
-    onchange,
-    onFitGlobeChange
+    map
   }: {
     map: maplibregl.Map;
-    onchange?: (bounds: [number, number][]) => void;
-    onFitGlobeChange?: (fitGlobe: boolean) => void;
   } = $props();
 
   let isPicking = $state(false);
@@ -119,8 +115,6 @@
           bounds: points,
           fitGlobe: false
         };
-        onFitGlobeChange?.(false);
-        onchange?.(points);
       }
     }
     isPicking = !isPicking;
@@ -137,7 +131,6 @@
       z: zoom ?? $options.z,
       bounds: []
     };
-    onchange?.([]);
   }
 </script>
 
@@ -151,7 +144,6 @@
     onclick={() => {
       if (!isPicking) {
         $options.fitGlobe = false;
-        onFitGlobeChange?.(false);
       }
       togglePicking();
     }}
